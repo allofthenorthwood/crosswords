@@ -1,7 +1,7 @@
 import './App.css';
 import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { range, sortBy, uniq } from 'lodash';
+import { range, sortBy, uniq, remove } from 'lodash';
 
 function App() {
   const [draftDirection, setDraftDirection] = useState('x');
@@ -141,8 +141,11 @@ function App() {
                         onMouseEnter={() => handleMouseEnter(x, y)}
                         onMouseLeave={() => handleMouseLeave(x, y)}
                         interactable={canCommit || modifiableIsHere}
+                        placeable={draftWord.length > 0 && canCommit}
+                        holdingWord={draftWord.length > 0}
                         modifiable={modifiableIsHere}
                         hover={modifiableIsHere && !draftWord.length}
+                        hasLetter={chars.length || draftChar}
                         onClick={() => {
                           if (modifiableWordItem) {
                             removeWord(modifiableWordItem);
@@ -154,8 +157,8 @@ function App() {
                         <GridCellNumber>
                           {cellNumbers.get(x + '-' + y)}
                         </GridCellNumber>
-                        <GridCellChar error={uniq(chars).length > 1}>
-                          {uniq(chars).join('')}
+                        <GridCellChar error={uniq(chars).length > 1 || draftChar}>
+                          {uniq(remove(chars, c => {return c !== draftChar})).join('')}
                         </GridCellChar>
                         <GridCellChar draft={true}>{draftChar}</GridCellChar>
                       </GridCell>
@@ -218,8 +221,8 @@ let GridCell = styled.td`
   border: 1px solid black;
   width: 30px;
   height: 30px;
-  cursor: ${(props) => (props.interactable ? 'pointer' : 'default')};
-  background: ${(props) => (props.modifiable && props.hover ? '#eee' : '')};
+  cursor: ${(props) => (props.holdingWord && !props.placeable ? 'not-allowed' :props.holdingWord ? 'grabbing' : props.interactable ? 'grab' :  'default')};
+  background: ${(props) => (props.modifiable && props.hover ? '#eee' : props.hasLetter ? '#fff' : '#aaa')};
   text-align: center;
   position: relative;
 `;
