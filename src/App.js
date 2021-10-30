@@ -3,21 +3,41 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { range, sortBy, uniq, remove } from 'lodash';
 
+function ClueList({ title, clues, cellNumbers, updateClue }) {
+  return (
+    <div>
+      <h3>{title}</h3>
+      {clues.map((item, idx) => (
+        <ClueListItem key={idx}>
+          {cellNumbers.get(item.x + '-' + item.y)}.{' '}
+          <ClueAnswer>({item.word})</ClueAnswer>
+          <ClueInput
+            value={item.clue}
+            placeholder="[Clue needed]"
+            onChange={(e) => updateClue(item.word, e.target.value)}
+          />
+        </ClueListItem>
+      ))}
+    </div>
+  );
+}
+
 function App() {
-  const [draftDirection, setDraftDirection] = useState('x');
-  const [candidatePosition, setCandidatePosition] = useState(null);
+  let [draftDirection, setDraftDirection] = useState('x');
+  let [candidatePosition, setCandidatePosition] = useState(null);
 
-  const [draftWord, setDraftWord] = useState('test');
-  const [wordList, setWordList] = useState([]);
+  let [draftWord, setDraftWord] = useState('word');
+  let [draftClue, setDraftClue] = useState('');
+  let [wordList, setWordList] = useState([]);
 
-  const changeDraftDirection = () => {
+  let changeDraftDirection = () => {
     setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
   };
 
-  const handleMouseEnter = (x, y) => {
+  let handleMouseEnter = (x, y) => {
     setCandidatePosition({ x, y });
   };
-  const handleMouseLeave = () => {
+  let handleMouseLeave = () => {
     setCandidatePosition(null);
   };
 
@@ -36,10 +56,22 @@ function App() {
     return () => document.body.removeEventListener('keydown', handleKeyDown);
   });
 
-  const addWord = (x, y, direction, word) => {
+  let updateClue = (word, clue) => {
     setWordList((prevWordList) => {
       return sortBy(
-        [...prevWordList, { x, y, direction, word }],
+        prevWordList.map((item) =>
+          item.word === word ? { ...item, clue } : item
+        ),
+        (item) => item.y,
+        (item) => item.x
+      );
+    });
+  };
+
+  let addWord = (x, y, direction, word, clue) => {
+    setWordList((prevWordList) => {
+      return sortBy(
+        [...prevWordList, { x, y, direction, word, clue }],
         (item) => item.y,
         (item) => item.x
       );
@@ -55,20 +87,22 @@ function App() {
         );
       })
     : null;
-  
+
   let modifiableWordItem = !draftWord ? wordHere : null;
 
   let canCommit = !!draftWord && !wordHere;
-  const commitWord = (x, y) => {
+  let commitWord = (x, y) => {
     if (draftWord && canCommit) {
-      addWord(x, y, draftDirection, draftWord);
+      addWord(x, y, draftDirection, draftWord, draftClue);
       setDraftWord('');
+      setDraftClue('');
     }
   };
 
-  const removeWord = (modifiableWordItem) => {
+  let removeWord = (modifiableWordItem) => {
     setWordList(wordList.filter((item) => item !== modifiableWordItem));
     setDraftWord(modifiableWordItem.word);
+    setDraftClue(modifiableWordItem.clue);
   };
 
   let cellNumbers = new Map();
@@ -79,6 +113,12 @@ function App() {
       cellNumbers.set(key, cellNum++);
     }
   }
+
+  let acrossClues = 
+    wordList.filter((item) => item.direction === 'x');
+
+  let downClues =
+    wordList.filter((item) => item.direction === 'y');
 
   let gridSize = 10;
   return (
@@ -95,10 +135,9 @@ function App() {
       </UI>
       <Container>
         <Grid>
-          <tbody>
             {range(gridSize).map((y) => {
               return (
-                <tr key={y}>
+                <GridRow key={y}>
                   {range(gridSize).map((x) => {
                     function getCharFromWord({
                       word,
@@ -154,40 +193,36 @@ function App() {
                           }
                         }}
                       >
-                        <GridCellNumber>
-                          {cellNumbers.get(x + '-' + y)}
-                        </GridCellNumber>
-                        <GridCellChar error={uniq(chars).length > 1 || draftChar}>
-                          {uniq(remove(chars, c => {return c !== draftChar})).join('')}
-                        </GridCellChar>
-                        <GridCellChar draft={true}>{draftChar}</GridCellChar>
+                        <GridCellContents>
+                          <GridCellNumber>
+                            {cellNumbers.get(x + '-' + y)}
+                          </GridCellNumber>
+                          <GridCellChar
+                            error={uniq(chars).length > 1 || draftChar}
+                          >
+                            {uniq(
+                              remove(chars, (c) => {
+                                return c !== draftChar;
+                              })
+                            ).join('')}
+                          </GridCellChar>
+                          <GridCellChar draft={true}>{draftChar}</GridCellChar>
+                        </GridCellContents>
                       </GridCell>
                     );
                   })}
-                </tr>
+                </GridRow>
               );
             })}
-          </tbody>
         </Grid>
         <div>
-          <h3>Across</h3>
-          {sortBy(
-            wordList.filter((item) => item.direction === 'x'),
-            (item) => item.y
-          ).map((item, idx) => (
-            <Clue key={idx}>
-              {cellNumbers.get(item.x + '-' + item.y)}. {item.word}
-            </Clue>
-          ))}
-          <h3>Down</h3>
-          {sortBy(
-            wordList.filter((item) => item.direction === 'y'),
-            (item) => item.x
-          ).map((item, idx) => (
-            <Clue key={idx}>
-              {cellNumbers.get(item.x + '-' + item.y)}. {item.word}
-            </Clue>
-          ))}
+          <ClueList
+            title="Across"
+            clues={acrossClues}
+            cellNumbers={cellNumbers}
+            updateClue={updateClue}
+          />
+          <ClueList title="Down" clues={downClues} cellNumbers={cellNumbers} />
         </div>
       </Container>
     </div>
@@ -196,14 +231,29 @@ function App() {
 let UI = styled.div``;
 let Container = styled.div`
   display: flex;
+  align-items: start;
 `;
 
 let WordInput = styled.input`
   padding: 10px;
 `;
 
-let Clue = styled.div`
+let ClueInput = styled.input`
+  padding: 5px;
+  margin: 2px;
+  display: block;
+  ::placeholder,
+  ::-webkit-input-placeholder {
+    color: #ccc;
+  }
+`;
+
+let ClueListItem = styled.div`
   padding: 10px;
+`;
+
+let ClueAnswer = styled.span`
+  color: #bbb;
 `;
 
 let Button = styled.button`
@@ -211,23 +261,47 @@ let Button = styled.button`
   padding: 5px;
 `;
 
-let Grid = styled.table`
-  border-collapse: collapse;
-  border-spacing: 0;
-  table-layout: fixed;
+let Grid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: black;
 `;
 
-let GridCell = styled.td`
-  border: 1px solid black;
+let GridRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 1px;
+`;
+
+let GridCell = styled.div`
+  cursor: ${(props) =>
+    props.holdingWord && !props.placeable
+      ? 'not-allowed'
+      : props.holdingWord
+      ? 'grabbing'
+      : props.interactable
+      ? 'grab'
+      : 'default'};
+  background: ${(props) =>
+    props.modifiable && props.hover
+      ? '#eee'
+      : props.hasLetter
+      ? '#fff'
+      : '#aaa'};
+`;
+
+let GridCellContents = styled.div`
   width: 30px;
   height: 30px;
-  cursor: ${(props) => (props.holdingWord && !props.placeable ? 'not-allowed' :props.holdingWord ? 'grabbing' : props.interactable ? 'grab' :  'default')};
-  background: ${(props) => (props.modifiable && props.hover ? '#eee' : props.hasLetter ? '#fff' : '#aaa')};
   text-align: center;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
-let GridCellChar = styled.span`
+let GridCellChar = styled.div`
   color: ${(props) => (props.error ? 'red' : null)};
   font-weight: ${(props) => (props.draft ? 'bold' : '')};
 `;
