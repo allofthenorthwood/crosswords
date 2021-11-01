@@ -3,6 +3,25 @@ import { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { range, sortBy, uniq } from 'lodash';
 
+function SavedWordLists({ current, wordLists, select, children }) {
+  return (
+    <SavedLists>
+      {wordLists.map((wordList, idx) => {
+        return (
+          <SavedListItem
+            key={idx}
+            onClick={() => select(idx)}
+            current={current === idx}
+          >
+            Wordlist #{idx} ({wordList.length} word
+            {wordList.length === 1 ? '' : 's'})
+          </SavedListItem>
+        );
+      })}
+      {children}
+    </SavedLists>
+  );
+}
 function ClueList({ title, clues, cellNumbers, updateClue }) {
   return (
     <ClueListSection>
@@ -24,11 +43,14 @@ function ClueList({ title, clues, cellNumbers, updateClue }) {
 
 function App() {
   let inputRef = useRef(null);
-  let [draftDirection, setDraftDirection] = useState('x');
   let [candidatePosition, setCandidatePosition] = useState(null);
 
-  let [draftWord, setDraftWord] = useState('word');
+  let [currentlySaved, setCurrentlySaved] = useState(true);
+
+  let [draftDirection, setDraftDirection] = useState('x');
+  let [draftWord, setDraftWord] = useState('');
   let [draftClue, setDraftClue] = useState('');
+
   let [wordList, setWordList] = useState(() => {
     // getting stored value
     const saved = localStorage.getItem('wordList');
@@ -36,9 +58,17 @@ function App() {
     return initialValue || [];
   });
 
-  let swapDraftDirection = () => {
-    setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
-  };
+  let [currentWordListIdx, setCurrentWordListIdx] = useState(() => {
+    const saved = localStorage.getItem('currentWordListIdx');
+    const initialValue = JSON.parse(saved);
+    return initialValue || 0;
+  });
+
+  let [savedWordLists, setSavedWordLists] = useState(() => {
+    const saved = localStorage.getItem('savedWordLists');
+    const initialValue = JSON.parse(saved);
+    return initialValue || [];
+  });
 
   let handleMouseEnter = (x, y) => {
     setCandidatePosition({ x, y });
@@ -48,6 +78,10 @@ function App() {
   };
 
   useEffect(() => {
+    let swapDraftDirection = () => {
+      setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
+    };
+
     function handleKeyDown(e) {
       if (e.code === 'Enter') {
         e.preventDefault();
@@ -60,10 +94,36 @@ function App() {
     }
 
     localStorage.setItem('wordList', JSON.stringify(wordList));
+    localStorage.setItem('savedWordLists', JSON.stringify(savedWordLists));
 
     document.body.addEventListener('keydown', handleKeyDown);
     return () => document.body.removeEventListener('keydown', handleKeyDown);
-  }, [wordList]);
+  }, [wordList, draftDirection, savedWordLists]);
+
+  let saveWordList = () => {
+    setCurrentlySaved(true);
+    setSavedWordLists((prevSavedWordLists) => {
+      if (prevSavedWordLists[currentWordListIdx]) {
+        return prevSavedWordLists.map((prevList, idx) => {
+          return idx === currentWordListIdx ? wordList : prevList;
+        });
+      } else {
+        return [...prevSavedWordLists, []];
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!savedWordLists[currentWordListIdx]) {
+      setCurrentlySaved(true);
+      setSavedWordLists((prevSavedWordLists) => {
+        return [...prevSavedWordLists, []];
+      });
+      setWordList([]);
+    } else {
+      setWordList(savedWordLists[currentWordListIdx]);
+    }
+  }, [savedWordLists, currentWordListIdx]);
 
   let updateClue = (word, clue) => {
     updateWordList((prevWordList) => {
@@ -87,7 +147,20 @@ function App() {
     });
   };
 
+  let newWordList = () => {
+    setCurrentWordListIdx(savedWordLists.length);
+  };
+
+  let selectWordList = (listIdx) => {
+    if (!currentlySaved) {
+      alert('You have unsaved changes');
+    } else {
+      setCurrentWordListIdx(listIdx);
+    }
+  };
+
   let updateWordList = (func) => {
+    setCurrentlySaved(false);
     setWordList(func);
   };
 
@@ -123,7 +196,7 @@ function App() {
   };
 
   let removeWord = (modifiableWordItem) => {
-    setWordList(wordList.filter((item) => item !== modifiableWordItem));
+    updateWordList(wordList.filter((item) => item !== modifiableWordItem));
     setDraftWord(modifiableWordItem.word);
     setDraftClue(modifiableWordItem.clue);
     setDraftDirection(modifiableWordItem.direction);
@@ -150,6 +223,7 @@ function App() {
           <WordInput
             value={draftWord}
             onChange={(e) => setDraftWord(e.target.value)}
+            placeholder={'Enter a new word...'}
             ref={inputRef}
           />
           <Hint>
@@ -161,19 +235,34 @@ function App() {
           <Button
             onClick={() => setDraftDirection('x')}
             selected={draftDirection === 'x'}
+            leftMost={true}
+            unclickable={draftDirection === 'x'}
           >
             Across {'\u2794'}
           </Button>
           <Button
             onClick={() => setDraftDirection('y')}
-            down={true}
+            rightMost={true}
             selected={draftDirection === 'y'}
+            unclickable={draftDirection === 'y'}
           >
             Down <Rotate>{'\u2794'}</Rotate>
           </Button>
           <Hint>
             <HintText>Swap with Enter</HintText>
-            <Key val={"enter"}>{'\u23CE'}</Key>
+            <Key val={'enter'}>{'\u23CE'}</Key>
+          </Hint>
+        </Buttons>
+        <Buttons minWidth={'100px'}>
+          <Button
+            onClick={saveWordList}
+            fullWidth={true}
+            unclickable={currentlySaved}
+          >
+            Save
+          </Button>
+          <Hint>
+            <HintText>{currentlySaved ? '✔ Saved' : '✖ Unsaved'}</HintText>
           </Hint>
         </Buttons>
       </UI>
@@ -273,6 +362,14 @@ function App() {
           <ClueList title="Down" clues={downClues} cellNumbers={cellNumbers} />
         </Clues>
       </Container>
+      <SavedWordLists
+        wordLists={savedWordLists}
+        current={currentWordListIdx}
+        saved={currentlySaved}
+        select={selectWordList}
+      >
+        <Button onClick={newWordList}>New</Button>
+      </SavedWordLists>
     </div>
   );
 }
@@ -290,28 +387,44 @@ let WordUI = styled.div`
   display: flex;
   flex-direction: column;
   text-align: center;
+  flex-grow: 1;
 `;
 let WordInput = styled.input`
   padding: 6px 7px;
+  ::placeholder,
+  ::-webkit-input-placeholder {
+    color: #ccc;
+  }
 `;
 
 let Buttons = styled.div`
   text-align: center;
   margin-left: 10px;
-`;
-let Button = styled.button`
-  background: ${(props) => (props.selected ? '#4cc7f9' : '#eee')};
-  border: 1px solid ${(props) => (props.selected ? '#1a8fbf' : '#ccc')};
-  border-radius: ${(props) => (props.down ? '0 10px 10px 0' : '10px 0 0 10px')};
-  padding: 7px;
-  cursor: ${(props) => (props.selected ? 'default' : 'pointer')};
-  :hover {
-    background: ${(props) => (props.selected ? '#4cc7f9' : '#ddd')};
-  }
+  min-width: ${(props) => props.minWidth || 'none'};
 `;
 let Rotate = styled.span`
   transform: rotate(90deg);
   display: inline-block;
+`;
+let Button = styled.button`
+  background: ${(props) =>
+    props.selected ? '#4cc7f9' : props.unclickable ? '#ccc' : '#eee'};
+  color: ${(props) =>
+    props.selected ? 'black' : props.unclickable ? '#888' : 'black'};
+  border: 1px solid ${(props) => (props.selected ? '#1a8fbf' : '#ccc')};
+  width: ${(props) => (props.fullWidth ? '100%' : 'inherit')};
+  border-radius: ${(props) =>
+    props.rightMost
+      ? '0 10px 10px 0'
+      : props.leftMost
+      ? '10px 0 0 10px'
+      : '10px'};
+  padding: 7px;
+  cursor: ${(props) => (props.unclickable ? 'default' : 'pointer')};
+  :hover {
+    background: ${(props) =>
+      props.selected ? '#4cc7f9' : props.unclickable ? '#ccc' : '#ddd'};
+  }
 `;
 
 let Hint = styled.div`
@@ -328,10 +441,10 @@ let HintText = styled.span`
 `;
 let Key = styled.span`
   font-color: #999;
-  padding: 3px 5px 10px ${(props) => props.val === "enter" ? '10px' : '5px'};
+  padding: 3px 5px 10px ${(props) => (props.val === 'enter' ? '10px' : '5px')};
   display: inline-block;
   background: #eee;
-  
+
   height: 0.5em;
   border: 1px solid #999;
   font-size: 1em;
@@ -341,6 +454,7 @@ let Key = styled.span`
 
 let Clues = styled.div`
   width: 100%;
+  height: 100px;
 `;
 let ClueListSection = styled.div`
   padding: 5px;
@@ -416,7 +530,7 @@ let GridCellContents = styled.div`
   position: relative;
   display: flex;
   align-items: center;
-  padding-top: 0.25em;
+  padding-top: 0.4em;
   box-sizing: border-box;
   justify-content: center;
   text-transform: uppercase;
@@ -432,6 +546,12 @@ let GridCellNumber = styled.span`
   top: 0px;
   left: 1px;
   font-size: 0.5em;
+`;
+
+let SavedLists = styled.div``;
+let SavedListItem = styled.div`
+  padding: 10px;
+  background: ${(props) => (props.current ? 'red' : '')};
 `;
 
 export default App;
