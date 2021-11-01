@@ -29,7 +29,12 @@ function App() {
 
   let [draftWord, setDraftWord] = useState('word');
   let [draftClue, setDraftClue] = useState('');
-  let [wordList, setWordList] = useState([]);
+  let [wordList, setWordList] = useState(() => {
+    // getting stored value
+    const saved = localStorage.getItem('wordList');
+    const initialValue = JSON.parse(saved);
+    return initialValue || [];
+  });
 
   let swapDraftDirection = () => {
     setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
@@ -53,12 +58,15 @@ function App() {
         setDraftWord('');
       }
     }
+
+    localStorage.setItem('wordList', JSON.stringify(wordList));
+
     document.body.addEventListener('keydown', handleKeyDown);
     return () => document.body.removeEventListener('keydown', handleKeyDown);
-  });
+  }, [wordList]);
 
   let updateClue = (word, clue) => {
-    setWordList((prevWordList) => {
+    updateWordList((prevWordList) => {
       return sortBy(
         prevWordList.map((item) =>
           item.word === word ? { ...item, clue } : item
@@ -70,13 +78,17 @@ function App() {
   };
 
   let addWord = (x, y, direction, word, clue) => {
-    setWordList((prevWordList) => {
+    updateWordList((prevWordList) => {
       return sortBy(
         [...prevWordList, { x, y, direction, word, clue }],
         (item) => item.y,
         (item) => item.x
       );
     });
+  };
+
+  let updateWordList = (func) => {
+    setWordList(func);
   };
 
   let wordHereMatchingDirection = candidatePosition
@@ -135,14 +147,15 @@ function App() {
     <div className="App">
       <UI>
         <WordUI>
-          <WordInputPrompt>
-            <div>New Word:</div>
-          </WordInputPrompt>
           <WordInput
             value={draftWord}
             onChange={(e) => setDraftWord(e.target.value)}
             ref={inputRef}
           />
+          <Hint>
+            <HintText>Clear with Escape</HintText>
+            <Key>ESC</Key>
+          </Hint>
         </WordUI>
         <Buttons>
           <Button
@@ -160,7 +173,7 @@ function App() {
           </Button>
           <Hint>
             <HintText>Swap with Enter</HintText>
-            <EnterKey>{'\u23CE'}</EnterKey>
+            <Key val={"enter"}>{'\u23CE'}</Key>
           </Hint>
         </Buttons>
       </UI>
@@ -171,10 +184,11 @@ function App() {
               <GridRow key={y}>
                 {range(gridSize).map((x) => {
                   function getCharFromWord({ word, direction, x: wx, y: wy }) {
+                    let chars = [...word];
                     if (direction === 'x' && wy === y) {
-                      return word[x - wx];
+                      return chars[x - wx];
                     } else if (direction === 'y' && wx === x) {
-                      return word[y - wy];
+                      return chars[y - wy];
                     }
                   }
 
@@ -277,15 +291,8 @@ let WordUI = styled.div`
   flex-direction: column;
   text-align: center;
 `;
-let WordInputPrompt = styled.div`
-  flex-grow: 1;
-  justify-content: flex-end;
-  display: flex;
-  flex-direction: column;
-`;
 let WordInput = styled.input`
-  padding: 5px;
-  margin: 5px;
+  padding: 6px 7px;
 `;
 
 let Buttons = styled.div`
@@ -296,7 +303,6 @@ let Button = styled.button`
   background: ${(props) => (props.selected ? '#4cc7f9' : '#eee')};
   border: 1px solid ${(props) => (props.selected ? '#1a8fbf' : '#ccc')};
   border-radius: ${(props) => (props.down ? '0 10px 10px 0' : '10px 0 0 10px')};
-  padding: 5px;
   padding: 7px;
   cursor: ${(props) => (props.selected ? 'default' : 'pointer')};
   :hover {
@@ -320,12 +326,12 @@ let Hint = styled.div`
 let HintText = styled.span`
   margin-right: 5px;
 `;
-let EnterKey = styled.span`
+let Key = styled.span`
   font-color: #999;
-  padding: 5px 10px 10px;
+  padding: 3px 5px 10px ${(props) => props.val === "enter" ? '10px' : '5px'};
   display: inline-block;
   background: #eee;
-  width: 0.5em;
+  
   height: 0.5em;
   border: 1px solid #999;
   font-size: 1em;
