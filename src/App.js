@@ -3,18 +3,44 @@ import { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { range, sortBy, uniq } from 'lodash';
 
-function SavedWordLists({ current, wordLists, select, children }) {
+function usePreventWindowUnload(preventDefault) {
+  useEffect(() => {
+    window.onbeforeunload = null;
+
+    if (preventDefault) {
+      window.onbeforeunload = function () {
+        return true;
+      };
+    }
+  }, [preventDefault]);
+}
+
+function SavedWordLists({ selected, wordLists, select, remove, children }) {
   return (
     <SavedLists>
       {wordLists.map((wordList, idx) => {
         return (
           <SavedListItem
             key={idx}
-            onClick={() => select(idx)}
-            current={current === idx}
+            onClick={() => {
+              if (selected !== idx) {
+                select(idx);
+              }
+            }}
+            selected={selected === idx}
           >
-            Wordlist #{idx} ({wordList.length} word
+            Crossword #{idx} ({wordList.length} word
             {wordList.length === 1 ? '' : 's'})
+            {selected === idx && (
+              <TextButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  remove(idx);
+                }}
+              >
+                (Delete)
+              </TextButton>
+            )}
           </SavedListItem>
         );
       })}
@@ -33,7 +59,7 @@ function ClueList({ title, clues, cellNumbers, updateClue }) {
           <ClueInput
             value={item.clue}
             placeholder="[Clue needed]"
-            onChange={(e) => updateClue(item.word, e.target.value)}
+            onChange={(e) => updateClue(item, e.target.value)}
           />
         </ClueListItem>
       ))}
@@ -58,6 +84,11 @@ function App() {
     return initialValue || [];
   });
 
+  usePreventWindowUnload(!currentlySaved);
+
+  // TODO: change to an object where the keys are unique timestamps or something,
+  // instead of using an array, so you can have titles for each crossword and links
+  // to them, etc
   let [currentWordListIdx, setCurrentWordListIdx] = useState(() => {
     const saved = localStorage.getItem('currentWordListIdx');
     const initialValue = JSON.parse(saved);
@@ -77,29 +108,6 @@ function App() {
     setCandidatePosition(null);
   };
 
-  useEffect(() => {
-    let swapDraftDirection = () => {
-      setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
-    };
-
-    function handleKeyDown(e) {
-      if (e.code === 'Enter') {
-        e.preventDefault();
-        swapDraftDirection();
-      }
-      if (e.code === 'Escape') {
-        e.preventDefault();
-        setDraftWord('');
-      }
-    }
-
-    localStorage.setItem('wordList', JSON.stringify(wordList));
-    localStorage.setItem('savedWordLists', JSON.stringify(savedWordLists));
-
-    document.body.addEventListener('keydown', handleKeyDown);
-    return () => document.body.removeEventListener('keydown', handleKeyDown);
-  }, [wordList, draftDirection, savedWordLists]);
-
   let saveWordList = () => {
     setCurrentlySaved(true);
     setSavedWordLists((prevSavedWordLists) => {
@@ -114,6 +122,37 @@ function App() {
   };
 
   useEffect(() => {
+    localStorage.setItem('savedWordLists', JSON.stringify(savedWordLists));
+  }, [savedWordLists]);
+  useEffect(() => {
+    localStorage.setItem('wordList', JSON.stringify(wordList));
+  }, [wordList]);
+  useEffect(() => {
+    localStorage.setItem(
+      'currentWordListIdx',
+      JSON.stringify(currentWordListIdx)
+    );
+  }, [currentWordListIdx]);
+
+  useEffect(() => {
+    let swapDraftDirection = () => {
+      setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
+    };
+    function handleKeyDown(e) {
+      if (e.code === 'Enter') {
+        e.preventDefault();
+        swapDraftDirection();
+      }
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        setDraftWord('');
+      }
+    }
+    document.body.addEventListener('keydown', handleKeyDown);
+    return () => document.body.removeEventListener('keydown', handleKeyDown);
+  }, [draftDirection]);
+
+  useEffect(() => {
     if (!savedWordLists[currentWordListIdx]) {
       setCurrentlySaved(true);
       setSavedWordLists((prevSavedWordLists) => {
@@ -125,11 +164,15 @@ function App() {
     }
   }, [savedWordLists, currentWordListIdx]);
 
-  let updateClue = (word, clue) => {
+  let updateClue = (wordItem, clue) => {
     updateWordList((prevWordList) => {
       return sortBy(
         prevWordList.map((item) =>
-          item.word === word ? { ...item, clue } : item
+          item.word === wordItem.word &&
+          item.x === wordItem.x &&
+          item.y === wordItem.y
+            ? { ...item, clue }
+            : item
         ),
         (item) => item.y,
         (item) => item.x
@@ -148,7 +191,7 @@ function App() {
   };
 
   let newWordList = () => {
-    setCurrentWordListIdx(savedWordLists.length);
+    selectWordList(savedWordLists.length);
   };
 
   let selectWordList = (listIdx) => {
@@ -156,6 +199,24 @@ function App() {
       alert('You have unsaved changes');
     } else {
       setCurrentWordListIdx(listIdx);
+    }
+  };
+
+  let removeWordList = (idx) => {
+    if (currentWordListIdx === idx) {
+      // Remove the current wordlist
+      setCurrentWordListIdx(0);
+      setSavedWordLists((prevWordLists) => {
+        return [
+          ...prevWordLists.slice(0, idx),
+          ...prevWordLists.slice(idx + 1),
+        ];
+      });
+    } else {
+      if (!currentlySaved) {
+        alert('Please save before making changes');
+      }
+      // BUG: removing wordlists will erase your unsaved data
     }
   };
 
@@ -217,7 +278,7 @@ function App() {
 
   let gridSize = 15;
   return (
-    <div className="App">
+    <Body>
       <UI>
         <WordUI>
           <WordInput
@@ -266,7 +327,7 @@ function App() {
           </Hint>
         </Buttons>
       </UI>
-      <Container>
+      <GridClueContainer>
         <Grid>
           {range(gridSize).map((y) => {
             return (
@@ -353,36 +414,42 @@ function App() {
           })}
         </Grid>
         <Clues>
-          <ClueList
-            title="Across"
-            clues={acrossClues}
-            cellNumbers={cellNumbers}
-            updateClue={updateClue}
-          />
-          <ClueList title="Down" clues={downClues} cellNumbers={cellNumbers} />
+          <CluesInner>
+            <ClueList
+              title="Across"
+              clues={acrossClues}
+              cellNumbers={cellNumbers}
+              updateClue={updateClue}
+            />
+            <ClueList
+              title="Down"
+              clues={downClues}
+              cellNumbers={cellNumbers}
+            />
+          </CluesInner>
         </Clues>
-      </Container>
+      </GridClueContainer>
       <SavedWordLists
         wordLists={savedWordLists}
-        current={currentWordListIdx}
+        selected={currentWordListIdx}
         saved={currentlySaved}
         select={selectWordList}
+        remove={removeWordList}
       >
-        <Button onClick={newWordList}>New</Button>
+        <Button onClick={newWordList}>New Crossword</Button>
       </SavedWordLists>
-    </div>
+    </Body>
   );
 }
+
+let Body = styled.div`
+  font-size: 16px;
+`;
+
 let UI = styled.div`
   display: flex;
   padding: 5px;
 `;
-let Container = styled.div`
-  display: flex;
-  align-items: start;
-  font-size: 16px;
-`;
-
 let WordUI = styled.div`
   display: flex;
   flex-direction: column;
@@ -452,7 +519,16 @@ let Key = styled.span`
   vertical-align: middle;
 `;
 
+let GridClueContainer = styled.div`
+  display: flex;
+  align-items: stretch;
+`;
+
 let Clues = styled.div`
+  width: 100%;
+  overflow-y: scroll;
+`;
+let CluesInner = styled.div`
   width: 100%;
   height: 100px;
 `;
@@ -548,10 +624,29 @@ let GridCellNumber = styled.span`
   font-size: 0.5em;
 `;
 
-let SavedLists = styled.div``;
+let SavedLists = styled.div`
+  padding: 10px;
+`;
 let SavedListItem = styled.div`
   padding: 10px;
-  background: ${(props) => (props.current ? 'red' : '')};
+  background: ${(props) => (props.selected ? '#4cc7f9' : '#eee')};
+  color: ${(props) => (props.selected ? 'black' : 'black')};
+  border: 1px solid ${(props) => (props.selected ? '#1a8fbf' : '#eee')};
+  cursor: ${(props) => (props.selected ? 'default' : 'pointer')};
+  :hover {
+    background: ${(props) => (props.selected ? '#4cc7f9' : '#ddd')};
+  }
+`;
+let TextButton = styled.button`
+  background: none;
+  border: none;
+  color: #1a8fbf;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0px 10px;
+  :hover {
+    color: #fff;
+  }
 `;
 
 export default App;
