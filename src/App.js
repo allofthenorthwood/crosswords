@@ -84,9 +84,7 @@ function App() {
     return initialValue || [];
   });
 
-  usePreventWindowUnload(!currentlySaved);
-
-  // TODO: change to an object where the keys are unique timestamps or something,
+  // TODO: change wordlists to an object where the keys are unique timestamps etc,
   // instead of using an array, so you can have titles for each crossword and links
   // to them, etc
   let [currentWordListIdx, setCurrentWordListIdx] = useState(() => {
@@ -100,6 +98,8 @@ function App() {
     const initialValue = JSON.parse(saved);
     return initialValue || [];
   });
+
+  usePreventWindowUnload(!currentlySaved);
 
   let handleMouseEnter = (x, y) => {
     setCandidatePosition({ x, y });
@@ -277,16 +277,30 @@ function App() {
   let downClues = wordList.filter((item) => item.direction === 'y');
 
   let gridSize = 15;
+
+  let validateWordInput = (e) => {
+    e.target.value = e.target.value.replace(/[^\w]/g, '').toUpperCase();
+    setDraftWord(e.target.value);
+  };
+
   return (
     <Body>
       <UI>
         <WordUI>
-          <WordInput
-            value={draftWord}
-            onChange={(e) => setDraftWord(e.target.value)}
-            placeholder={'Enter a new word...'}
-            ref={inputRef}
-          />
+          <WordInputWrapper>
+            <WordInput
+              value={draftWord}
+              onChange={(e) => validateWordInput(e)}
+              placeholder={'Enter a new word...'}
+              ref={inputRef}
+            />
+            <WordInputCounter
+              error={draftWord.length > gridSize}
+              empty={draftWord.length === 0}
+            >
+              {draftWord.length}
+            </WordInputCounter>
+          </WordInputWrapper>
           <Hint>
             <HintText>Clear with Escape</HintText>
             <Key>ESC</Key>
@@ -456,11 +470,42 @@ let WordUI = styled.div`
   text-align: center;
   flex-grow: 1;
 `;
+let WordInputWrapper = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  
+`;
+let wordInputRadius = '3px';
+let WordInputCounter = styled.div`
+  font-weight: bold;
+  padding: 4px;
+  width: 2em;
+  background: #eee;
+  border: 1px solid #999;
+  border-radius: 0 ${wordInputRadius} ${wordInputRadius} 0;
+  border-left: none;
+  color: ${(props) => (props.error ? 'red' : props.empty ? '#ddd' : '#555')};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
 let WordInput = styled.input`
+  flex-grow: 1;
   padding: 6px 7px;
+  letter-spacing: 3px;
+  border-radius: ${wordInputRadius} 0 0 ${wordInputRadius};
+  border: 1px solid #999;
+  z-index: 2;
   ::placeholder,
   ::-webkit-input-placeholder {
     color: #ccc;
+    letter-spacing: initial;
+  }
+  :focus {
+    border: 1px solid #1a8fbf;
+    box-shadow: 0 0 1px 2px #1a8fbf;
+    outline: none;
   }
 `;
 
