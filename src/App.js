@@ -262,6 +262,33 @@ function PlayableCrossWordGrid({
   let handleMouseLeave = () => {
     //
   };
+  let inputCount = 0;
+
+  function handleChange(e) {
+    const { name } = e.target;
+    const fieldIndex = name.split('-')[1];
+    e.target.value = e.target.value.replace(/[^\w]/g, '').toUpperCase();
+
+    // Check if they hit the max character length
+    if (e.target.value.length >= 1) {
+      e.target.value = e.target.value.slice(e.target.value.length - 1); // todo this fucks up
+      //if you enter the new char before the one that is already there
+      
+      // Get the next input field
+      const nextSibling = document.querySelector(
+        // todo: if "down" mode, go down instead of to the side
+        `input[name=cellinput-${parseInt(fieldIndex, 10) + 1}]`
+      );
+
+      // If found, focus the next field
+      if (nextSibling !== null) {
+        nextSibling.focus();
+      }
+    }
+
+    // TODO: Set the value
+  }
+
   return (
     <Grid>
       {range(gridSize).map((y) => {
@@ -278,7 +305,6 @@ function PlayableCrossWordGrid({
               }
 
               let chars = [];
-              let modifiableIsHere = false;
 
               for (let wordInfo of wordList) {
                 let char = getCharFromWord(wordInfo);
@@ -287,19 +313,24 @@ function PlayableCrossWordGrid({
                 }
               }
 
+              let hasLetter = chars.length;
               return (
                 <GridCell
                   key={x}
                   onMouseEnter={() => handleMouseEnter(x, y)}
                   onMouseLeave={() => handleMouseLeave(x, y)}
-                  hasLetter={chars.length}
-                  onClick={() => {}}
+                  hasLetter={hasLetter}
                 >
                   <GridCellContents>
-                    <GridCellNumber>
+                    <GridCellNumber writeable={true}>
                       {cellNumbers.get(x + '-' + y)}
                     </GridCellNumber>
-                    {chars.length > 0 && <GridCellInput />}
+                    {hasLetter > 0 && (
+                      <GridCellInput
+                        name={`cellinput-${inputCount++}`}
+                        onChange={handleChange}
+                      />
+                    )}
                   </GridCellContents>
                 </GridCell>
               );
@@ -784,7 +815,7 @@ let GridCellChar = styled.div`
 let GridCellInput = styled.input`
   width: 100%;
   position: absolute;
-  background: rgba(255, 255, 255, 0.2);
+  background: transparent;
   text-align: center;
   box-sizing: border-box;
   top: 0;
