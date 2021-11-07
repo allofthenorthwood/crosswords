@@ -159,11 +159,13 @@ function EditableCrosswordGrid({
   // Is there a word starting here? (Preferably, one in the right direction.)
   let wordHere = null;
   if (candidatePosition) {
-    let {x, y} = candidatePosition;
+    let { x, y } = candidatePosition;
     let wordHereAcross = grid[y][x].wordHereAcross;
     let wordHereDown = grid[y][x].wordHereDown;
     wordHere =
-      draftDirection === 'x' ? wordHereAcross ?? wordHereDown : wordHereDown ?? wordHereAcross;
+      draftDirection === 'x'
+        ? wordHereAcross ?? wordHereDown
+        : wordHereDown ?? wordHereAcross;
   }
 
   let modifiableWordItem, canCommitDraftWord;
@@ -308,29 +310,58 @@ function PlayableCrosswordGrid({ draftDirection, grid }) {
     if (e.key === 'Backspace') {
       handleBackspace(e, x, y);
     }
+    if (e.key === 'ArrowLeft') {
+      moveOneCell(x, y, 'x', true);
+    }
+    if (e.key === 'ArrowRight') {
+      moveOneCell(x, y, 'x', false);
+    }
+    if (e.key === 'ArrowUp') {
+      moveOneCell(x, y, 'y', true);
+    }
+    if (e.key === 'ArrowDown') {
+      moveOneCell(x, y, 'y', false);
+    }
+  }
+
+  function moveOneCell(x, y, dir, backwards) {
+    let thisCell = grid[y][x];
+    let targetCell = null;
+
+    if (backwards) {
+      targetCell =
+        dir === 'x'
+          ? thisCell.previousCellAcross
+          : thisCell.previousCellDown;
+    } else {
+      targetCell =
+        dir === 'x'
+          ? thisCell.nextCellAcross
+          : thisCell.nextCellDown;
+    }
+    let targetSibling = gridRef.current.querySelector(
+      `[name="cellinput-${targetCell.x}-${targetCell.y}"]`
+    );
+
+    if (targetSibling !== null) {
+      targetSibling.focus();
+    }
+    return targetSibling;
   }
 
   function handleBackspace(e, x, y) {
-    const { selectionEnd } = e.target;
-    if (selectionEnd !== 0) {
+    const { value } = e.target;
+    if (value.length !== 0) {
       // Allow normal backspace
+      e.target.value = '';
       return;
     }
 
     e.preventDefault();
 
-    let thisCell = grid[y][x];
-    let previousCell =
-      draftDirection === 'x'
-        ? thisCell.previousCellAcross
-        : thisCell.previousCellDown;
-    let previousSibling = gridRef.current.querySelector(
-      `[name="cellinput-${previousCell.x}-${previousCell.y}"]`
-    );
-
-    if (previousSibling !== null) {
-      previousSibling.focus();
-      previousSibling.value = previousSibling.value.slice(0, -1);
+    let prevSibling = moveOneCell(x, y, draftDirection, true);
+    if (prevSibling) {
+      prevSibling.value = prevSibling.value.slice(0, -1);
     }
   }
 
@@ -788,11 +819,13 @@ let GridCellInput = styled.input`
   font-size: 1em;
   padding: 0;
   padding-top: 0.4em;
+  caret-color: transparent;
 
   :focus {
     border: 0px;
     box-shadow: 0 0 1px 1px #1a8fbf;
     outline: none;
+    background: #4cc7f9;
   }
 `;
 
@@ -801,6 +834,7 @@ let GridCellNumber = styled.span`
   top: 0px;
   left: 1px;
   font-size: 0.5em;
+  z-index: 2;
 `;
 
 let SavedLists = styled.div`
