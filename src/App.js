@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import styled from 'styled-components';
-import { range, sortBy, uniq } from 'lodash';
+import { sortBy, uniq } from 'lodash';
+
+import ClueList from './ClueList';
+import { buildGridFromWordList } from './GridModel';
 
 function usePreventWindowUnload(preventDefault) {
   useEffect(() => {
@@ -87,31 +90,7 @@ function SavedWordLists({ selected, wordLists, select, remove, children }) {
   );
 }
 
-function ClueList({ title, clues, cellNumbers, updateClue, editable }) {
-  return (
-    <ClueListSection>
-      <ClueListTitle>{title}</ClueListTitle>
-      {clues.map((item, idx) => (
-        <ClueListItem key={idx}>
-          <ClueNum>{cellNumbers.get(item.x + '-' + item.y)}</ClueNum>
-          {editable && (
-            <>
-              <ClueAnswer>{item.word}</ClueAnswer>
-              <ClueInput
-                value={item.clue}
-                placeholder="[Clue needed]"
-                onChange={(e) => updateClue(item, e.target.value)}
-              />
-            </>
-          )}
-          {!editable && <Clue>{item.clue}</Clue>}
-        </ClueListItem>
-      ))}
-    </ClueListSection>
-  );
-}
-
-function EditUI({
+function EditorToolbar({
   inputRef,
   gridSize,
   draftWord,
@@ -169,18 +148,36 @@ function EditUI({
 }
 
 function EditableCrosswordGrid({
-  gridSize,
-  wordList,
-  modifiableWordItem,
-  candidatePosition,
   draftWord,
   draftDirection,
-  setCandidatePosition,
-  canCommit,
   removeWord,
   commitWord,
-  cellNumbers,
+  grid,
 }) {
+  let [candidatePosition, setCandidatePosition] = useState(null);
+
+  // Is there a word starting here? (Preferably, one in the right direction.)
+  let wordHere = null;
+  if (candidatePosition) {
+    let {x, y} = candidatePosition;
+    let wordHereAcross = grid[y][x].wordHereAcross;
+    let wordHereDown = grid[y][x].wordHereDown;
+    wordHere =
+      draftDirection === 'x' ? wordHereAcross ?? wordHereDown : wordHereDown ?? wordHereAcross;
+  }
+
+  let modifiableWordItem, canCommitDraftWord;
+  if (draftWord) {
+    // Making a new word. We can't commit if there's already a word here in the
+    // same direction.
+    modifiableWordItem = null;
+    canCommitDraftWord = !wordHere || wordHere.direction !== draftDirection;
+  } else {
+    // If we're hovering over a word, we can edit it.
+    modifiableWordItem = wordHere;
+    canCommitDraftWord = false;
+  }
+
   let handleMouseEnter = (x, y) => {
     setCandidatePosition({ x, y });
   };
@@ -189,10 +186,12 @@ function EditableCrosswordGrid({
   };
   return (
     <Grid>
-      {range(gridSize).map((y) => {
+      {grid.map((row, y) => {
         return (
           <GridRow key={y}>
-            {range(gridSize).map((x) => {
+            {row.map((cell, x) => {
+              let { chars, allWordsHere } = cell;
+
               function getCharFromWord({ word, direction, x: wx, y: wy }) {
                 let chars = [...word];
                 if (direction === 'x' && wy === y) {
@@ -202,19 +201,11 @@ function EditableCrosswordGrid({
                 }
               }
 
-              let chars = [];
-              let draftChar = '';
               let modifiableIsHere = false;
-
-              for (let wordInfo of wordList) {
-                let char = getCharFromWord(wordInfo);
-                if (char) {
-                  if (wordInfo === modifiableWordItem) {
-                    modifiableIsHere = true;
-                    draftChar = char;
-                  }
-                  chars.push(char);
-                }
+              let draftChar = '';
+              if (allWordsHere.has(modifiableWordItem)) {
+                modifiableIsHere = true;
+                draftChar = getCharFromWord(modifiableWordItem);
               }
               if (candidatePosition) {
                 draftChar =
@@ -231,32 +222,30 @@ function EditableCrosswordGrid({
                   key={x}
                   onMouseEnter={() => handleMouseEnter(x, y)}
                   onMouseLeave={() => handleMouseLeave(x, y)}
-                  interactable={canCommit || modifiableIsHere}
-                  placeable={draftWord.length > 0 && canCommit}
+                  interactable={canCommitDraftWord || modifiableIsHere}
+                  placeable={draftWord.length > 0 && canCommitDraftWord}
                   holdingWord={draftWord.length > 0}
                   modifiable={modifiableIsHere}
                   hover={modifiableIsHere && !draftWord.length}
-                  hasLetter={chars.length || draftChar}
+                  hasLetter={chars.size || draftChar}
                   onClick={() => {
                     if (modifiableWordItem) {
                       removeWord(modifiableWordItem);
-                    } else {
+                    } else if (canCommitDraftWord) {
                       commitWord(x, y);
                     }
                   }}
                 >
                   <GridCellContents>
-                    <GridCellNumber>
-                      {cellNumbers.get(x + '-' + y)}
-                    </GridCellNumber>
-                    {uniq([...sortBy(chars), ...draftChar]).map((c) => {
+                    <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
+                    {uniq([...sortBy([...chars]), ...draftChar]).map((c) => {
                       return (
                         <GridCellChar
                           error={
-                            uniq(chars).length > 1 ||
-                            (chars.length &&
+                            chars.size > 1 ||
+                            (chars.size > 0 &&
                               c === draftChar &&
-                              !chars.includes(draftChar))
+                              !chars.has(draftChar))
                           }
                           draft={c === draftChar}
                           key={c}
@@ -276,12 +265,9 @@ function EditableCrosswordGrid({
   );
 }
 
-function PlayableCrosswordGrid({
-  gridSize,
-  wordList,
-  draftDirection,
-  cellNumbers,
-}) {
+function PlayableCrosswordGrid({ draftDirection, grid }) {
+  let gridRef = useRef(null);
+
   let handleMouseEnter = (x, y) => {
     //
   };
@@ -289,29 +275,9 @@ function PlayableCrosswordGrid({
     //
   };
 
-  let sortedAcross = useMemo(
-    () =>
-      sortBy(
-        [...cellNumbers.keys()],
-        (k) => +k.split('-')[1],
-        (k) => +k.split('-')[0]
-      ),
-    [cellNumbers]
-  );
-  let sortedDown = useMemo(
-    () =>
-      sortBy(
-        [...cellNumbers.keys()],
-        (k) => +k.split('-')[0],
-        (k) => +k.split('-')[1]
-      ),
-    [cellNumbers]
-  );
-
   function handleChange(e, x, y) {
     const input = e.target;
-    const { name, value, selectionStart } = input;
-    const fieldIndex = name.split('-')[1];
+    const { value, selectionStart } = input;
 
     // TODO: better unicode support
     let char = value.charAt(selectionStart - 1);
@@ -319,10 +285,14 @@ function PlayableCrosswordGrid({
       e.target.value = char.toUpperCase();
 
       // Get the next input field
-      let keys = draftDirection === 'x' ? sortedAcross : sortedDown;
-      const thisIndex = keys.indexOf(`${x}-${y}`);
-      let nextKey = keys[thisIndex + 1] ?? keys[0];
-      let nextSibling = document.querySelector(`[name="cellinput-${nextKey}"]`);
+      let thisCell = grid[y][x];
+      let nextCell =
+        draftDirection === 'x'
+          ? thisCell.nextCellAcross
+          : thisCell.nextCellDown;
+      let nextSibling = gridRef.current.querySelector(
+        `[name="cellinput-${nextCell.x}-${nextCell.y}"]`
+      );
 
       // If found, focus the next field
       if (nextSibling !== null) {
@@ -341,19 +311,21 @@ function PlayableCrosswordGrid({
   }
 
   function handleBackspace(e, x, y) {
-    const { name, selectionEnd } = e.target;
+    const { selectionEnd } = e.target;
     if (selectionEnd !== 0) {
-      // Normal backspace works
+      // Allow normal backspace
       return;
     }
 
     e.preventDefault();
 
-    let keys = draftDirection === 'x' ? sortedAcross : sortedDown;
-    const thisIndex = keys.indexOf(`${x}-${y}`);
-    let previousKey = keys[thisIndex - 1] ?? keys[keys.length - 1];
-    let previousSibling = document.querySelector(
-      `[name="cellinput-${previousKey}"]`
+    let thisCell = grid[y][x];
+    let previousCell =
+      draftDirection === 'x'
+        ? thisCell.previousCellAcross
+        : thisCell.previousCellDown;
+    let previousSibling = gridRef.current.querySelector(
+      `[name="cellinput-${previousCell.x}-${previousCell.y}"]`
     );
 
     if (previousSibling !== null) {
@@ -363,62 +335,51 @@ function PlayableCrosswordGrid({
   }
 
   return (
-    <Grid>
-      {range(gridSize).map((y) => {
-        return (
-          <GridRow key={y}>
-            {range(gridSize).map((x) => {
-              function getCharFromWord({ word, direction, x: wx, y: wy }) {
-                let chars = [...word];
-                if (direction === 'x' && wy === y) {
-                  return chars[x - wx];
-                } else if (direction === 'y' && wx === x) {
-                  return chars[y - wy];
-                }
-              }
-
-              let chars = [];
-
-              for (let wordInfo of wordList) {
-                let char = getCharFromWord(wordInfo);
-                if (char) {
-                  chars.push(char);
-                }
-              }
-
-              let hasLetter = chars.length;
-              return (
-                <GridCell
-                  key={x}
-                  onMouseEnter={() => handleMouseEnter(x, y)}
-                  onMouseLeave={() => handleMouseLeave(x, y)}
-                  hasLetter={hasLetter}
-                >
-                  <GridCellContents>
-                    <GridCellNumber writeable={true}>
-                      {cellNumbers.get(x + '-' + y)}
-                    </GridCellNumber>
-                    {hasLetter > 0 && (
-                      <GridCellInput
-                        name={`cellinput-${x}-${y}`}
-                        onChange={(e) => handleChange(e, x, y)}
-                        onKeyDown={(e) => handleKeyDown(e, x, y)}
-                      />
-                    )}
-                  </GridCellContents>
-                </GridCell>
-              );
-            })}
-          </GridRow>
-        );
-      })}
+    <Grid ref={gridRef}>
+      {grid.map((row, y) => (
+        <GridRow key={y}>
+          {row.map((cell, x) => {
+            let hasLetter = cell.chars.size > 0;
+            return (
+              <GridCell
+                key={x}
+                onMouseEnter={() => handleMouseEnter(x, y)}
+                onMouseLeave={() => handleMouseLeave(x, y)}
+                hasLetter={hasLetter}
+              >
+                <GridCellContents>
+                  <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
+                  {hasLetter > 0 && (
+                    <GridCellInput
+                      name={`cellinput-${x}-${y}`}
+                      onChange={(e) => handleChange(e, x, y)}
+                      onKeyDown={(e) => handleKeyDown(e, x, y)}
+                    />
+                  )}
+                </GridCellContents>
+              </GridCell>
+            );
+          })}
+        </GridRow>
+      ))}
     </Grid>
   );
 }
 
+function useLocalStorageState(key, defaultValue) {
+  let [value, setValue] = useState(() => {
+    const saved = localStorage.getItem(key);
+    const initialValue = JSON.parse(saved);
+    return initialValue || defaultValue;
+  });
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+  return [value, setValue];
+}
+
 function EditorApp() {
   let inputRef = useRef(null);
-  let [candidatePosition, setCandidatePosition] = useState(null);
 
   let [currentlySaved, setCurrentlySaved] = useState(true);
 
@@ -426,27 +387,19 @@ function EditorApp() {
   let [draftWord, setDraftWord] = useState('');
   let [draftClue, setDraftClue] = useState('');
 
-  let [wordList, setWordList] = useState(() => {
-    // getting stored value
-    const saved = localStorage.getItem('wordList');
-    const initialValue = JSON.parse(saved);
-    return initialValue || [];
-  });
+  let [wordList, setWordList] = useLocalStorageState('wordList', []);
 
   // TODO: change wordlists to an object where the keys are unique timestamps etc,
   // instead of using an array, so you can have titles for each crossword and links
   // to them, etc
-  let [currentWordListIdx, setCurrentWordListIdx] = useState(() => {
-    const saved = localStorage.getItem('currentWordListIdx');
-    const initialValue = JSON.parse(saved);
-    return initialValue || 0;
-  });
-
-  let [savedWordLists, setSavedWordLists] = useState(() => {
-    const saved = localStorage.getItem('savedWordLists');
-    const initialValue = JSON.parse(saved);
-    return initialValue || [];
-  });
+  let [currentWordListIdx, setCurrentWordListIdx] = useLocalStorageState(
+    'currentWordListIdx',
+    0
+  );
+  let [savedWordLists, setSavedWordLists] = useLocalStorageState(
+    'savedWordLists',
+    []
+  );
 
   usePreventWindowUnload(!currentlySaved);
 
@@ -462,19 +415,6 @@ function EditorApp() {
       }
     });
   };
-
-  useEffect(() => {
-    localStorage.setItem('savedWordLists', JSON.stringify(savedWordLists));
-  }, [savedWordLists]);
-  useEffect(() => {
-    localStorage.setItem('wordList', JSON.stringify(wordList));
-  }, [wordList]);
-  useEffect(() => {
-    localStorage.setItem(
-      'currentWordListIdx',
-      JSON.stringify(currentWordListIdx)
-    );
-  }, [currentWordListIdx]);
 
   useEffect(() => {
     let swapDraftDirection = () => {
@@ -504,7 +444,7 @@ function EditorApp() {
     } else {
       setWordList(savedWordLists[currentWordListIdx]);
     }
-  }, [savedWordLists, currentWordListIdx]);
+  }, [savedWordLists, currentWordListIdx, setWordList, setSavedWordLists]);
 
   let updateClue = (wordItem, clue) => {
     updateWordList((prevWordList) => {
@@ -567,37 +507,18 @@ function EditorApp() {
     setWordList(func);
   };
 
-  let wordHereMatchingDirection = candidatePosition
-    ? wordList.find((item) => {
-        return (
-          item.x === candidatePosition.x &&
-          item.y === candidatePosition.y &&
-          item.direction === draftDirection
-        );
-      })
-    : null;
-  let wordHere =
-    wordHereMatchingDirection ??
-    (candidatePosition
-      ? wordList.find((item) => {
-          return (
-            item.x === candidatePosition.x && item.y === candidatePosition.y
-          );
-        })
-      : null);
+  let gridSize = 15;
+  let grid = useMemo(
+    () => buildGridFromWordList(wordList, gridSize),
+    [wordList, gridSize]
+  );
 
-  let modifiableWordItem = !draftWord ? wordHere : null;
-
-  let canCommit = !!draftWord && !wordHereMatchingDirection;
   let commitWord = (x, y) => {
-    if (draftWord && canCommit) {
-      addWord(x, y, draftDirection, draftWord, draftClue);
-      setDraftWord('');
-      setDraftClue('');
-      inputRef.current.focus();
-    }
+    addWord(x, y, draftDirection, draftWord, draftClue);
+    setDraftWord('');
+    setDraftClue('');
+    inputRef.current.focus();
   };
-
   let removeWord = (wordItem) => {
     updateWordList(wordList.filter((item) => item !== wordItem));
     setDraftWord(wordItem.word);
@@ -605,16 +526,9 @@ function EditorApp() {
     setDraftDirection(wordItem.direction);
   };
 
-  let cellNumbers = buildCellNumbersFromWordList(wordList);
-
-  let acrossClues = wordList.filter((item) => item.direction === 'x');
-  let downClues = wordList.filter((item) => item.direction === 'y');
-
-  let gridSize = 15;
-
   return (
     <Body>
-      <EditUI
+      <EditorToolbar
         inputRef={inputRef}
         gridSize={gridSize}
         draftWord={draftWord}
@@ -626,36 +540,18 @@ function EditorApp() {
       />
       <GridClueContainer>
         <EditableCrosswordGrid
-          gridSize={gridSize}
-          wordList={wordList}
-          modifiableWordItem={modifiableWordItem}
-          candidatePosition={candidatePosition}
           draftWord={draftWord}
           draftDirection={draftDirection}
-          setCandidatePosition={setCandidatePosition}
-          canCommit={canCommit}
           removeWord={removeWord}
           commitWord={commitWord}
-          cellNumbers={cellNumbers}
+          grid={grid}
         />
-        <Clues>
-          <CluesInner>
-            <ClueList
-              title="Across"
-              clues={acrossClues}
-              cellNumbers={cellNumbers}
-              updateClue={updateClue}
-              editable={true}
-            />
-            <ClueList
-              title="Down"
-              clues={downClues}
-              cellNumbers={cellNumbers}
-              updateClue={updateClue}
-              editable={true}
-            />
-          </CluesInner>
-        </Clues>
+        <ClueList
+          wordList={wordList}
+          grid={grid}
+          updateClue={updateClue}
+          editable={true}
+        />
       </GridClueContainer>
       <SavedWordLists
         wordLists={savedWordLists}
@@ -670,19 +566,30 @@ function EditorApp() {
   );
 }
 
-function buildCellNumbersFromWordList(wordList) {
-  let cellNumbers = new Map();
-  let cellNum = 1;
-  for (let info of wordList) {
-    let key = info.x + '-' + info.y;
-    if (!cellNumbers.has(key)) {
-      cellNumbers.set(key, cellNum++);
-    }
-  }
-  return cellNumbers;
+function PlayerApp({ wordList, gridSize }) {
+  let [draftDirection, setDraftDirection] = useState('x');
+  let grid = useMemo(
+    () => buildGridFromWordList(wordList, gridSize),
+    [wordList, gridSize]
+  );
+
+  return (
+    <Body>
+      <UI>
+        <DraftDirectionButtons
+          setDraftDirection={setDraftDirection}
+          draftDirection={draftDirection}
+        />
+      </UI>
+      <GridClueContainer>
+        <PlayableCrosswordGrid draftDirection={draftDirection} grid={grid} />
+        <ClueList wordList={wordList} grid={grid} editable={false} />
+      </GridClueContainer>
+    </Body>
+  );
 }
 
-function App() {
+function useLocationHash() {
   let [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
     function handleHashChange() {
@@ -693,50 +600,16 @@ function App() {
       window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
-  let [draftDirection, setDraftDirection] = useState('x');
+  return hash;
+}
+
+function App() {
+  let hash = useLocationHash();
 
   if (hash) {
     const wordList = JSON.parse(atob(hash.slice(1)));
     let gridSize = 15;
-    let cellNumbers = buildCellNumbersFromWordList(wordList);
-
-    let acrossClues = wordList.filter((item) => item.direction === 'x');
-    let downClues = wordList.filter((item) => item.direction === 'y');
-
-    return (
-      <Body>
-        <UI>
-          <DraftDirectionButtons
-            setDraftDirection={setDraftDirection}
-            draftDirection={draftDirection}
-          />
-        </UI>
-        <GridClueContainer>
-          <PlayableCrosswordGrid
-            gridSize={gridSize}
-            wordList={wordList}
-            draftDirection={draftDirection}
-            cellNumbers={cellNumbers}
-          />
-          <Clues>
-            <CluesInner>
-              <ClueList
-                title="Across"
-                clues={acrossClues}
-                cellNumbers={cellNumbers}
-                editable={false}
-              />
-              <ClueList
-                title="Down"
-                clues={downClues}
-                cellNumbers={cellNumbers}
-                editable={false}
-              />
-            </CluesInner>
-          </Clues>
-        </GridClueContainer>
-      </Body>
-    );
+    return <PlayerApp wordList={wordList} gridSize={gridSize} />;
   } else {
     return <EditorApp />;
   }
@@ -745,8 +618,6 @@ function App() {
 let Body = styled.div`
   font-size: 16px;
 `;
-
-let SectionTitle = styled.h1``;
 
 let UI = styled.div`
   display: flex;
@@ -831,7 +702,6 @@ let Hint = styled.div`
   padding: 5px;
   font-size: 0.5em;
   display: flex;
-  width: 100%;
   align-items: center;
   justify-content: center;
 `;
@@ -854,53 +724,6 @@ let Key = styled.span`
 let GridClueContainer = styled.div`
   display: flex;
   align-items: stretch;
-`;
-
-let Clues = styled.div`
-  width: 100%;
-  overflow-y: scroll;
-`;
-let CluesInner = styled.div`
-  width: 100%;
-  height: 100px;
-`;
-let ClueListSection = styled.div`
-  padding: 5px;
-  border-top: 1px solid #eee;
-`;
-let ClueListTitle = styled.h1`
-  font-size: 0.75em;
-  text-transform: uppercase;
-  margin: 0;
-  margin-bottom: 5px;
-`;
-let ClueInput = styled.input`
-  padding: 5px;
-  margin: 2px;
-  display: block;
-  ::placeholder,
-  ::-webkit-input-placeholder {
-    color: #ccc;
-  }
-`;
-
-let ClueListItem = styled.div`
-  margin-bottom: 10px;
-`;
-
-let ClueNum = styled.span`
-  font-weight: bold;
-  font-size: 0.75em;
-  display: inline-block;
-  vertical-align: top;
-  margin-right: 0.25em;
-`;
-let ClueAnswer = styled.span`
-  text-transform: uppercase;
-  font-size: 0.9em;
-`;
-let Clue = styled.div`
-  font-size: 0.9em;
 `;
 
 let Grid = styled.div`
