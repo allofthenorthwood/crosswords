@@ -44,7 +44,7 @@ function DraftDirectionButtons({ draftDirection, setDraftDirection }) {
   );
 }
 
-function SavedWordLists({ selected, wordLists, select, remove, children }) {
+function SavedWordLists({ selected, wordLists, select, remove, duplicate, children }) {
   return (
     <SavedLists>
       {wordLists.map((wordList, idx) => {
@@ -80,6 +80,14 @@ function SavedWordLists({ selected, wordLists, select, remove, children }) {
                 >
                   (Delete)
                 </TextButton>
+                <TextButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    duplicate(idx);
+                  }}
+                >
+                  (Duplicate)
+                </TextButton>
               </>
             )}
           </SavedListItem>
@@ -106,8 +114,8 @@ function EditorToolbar({
   };
 
   return (
-    <UI>
-      <WordUI>
+    <Toolbar>
+      <ToolbarSection>
         <WordInputWrapper>
           <WordInput
             value={draftWord}
@@ -126,7 +134,7 @@ function EditorToolbar({
           <HintText>Clear with Escape</HintText>
           <Key>ESC</Key>
         </Hint>
-      </WordUI>
+      </ToolbarSection>
       <DraftDirectionButtons
         setDraftDirection={setDraftDirection}
         draftDirection={draftDirection}
@@ -143,7 +151,7 @@ function EditorToolbar({
           <HintText>{currentlySaved ? '✔ Saved' : '✖ Unsaved'}</HintText>
         </Hint>
       </Buttons>
-    </UI>
+    </Toolbar>
   );
 }
 
@@ -529,7 +537,26 @@ function EditorApp() {
       if (!currentlySaved) {
         alert('Please save before making changes');
       }
-      // BUG: removing wordlists will erase your unsaved data
+      // BUG: removing other wordlists will erase your unsaved data
+    }
+  };
+
+  let duplicateWordList = (idx) => {
+    if (currentWordListIdx === idx) {
+      // Remove the current wordlist
+      setCurrentWordListIdx(0);
+      setSavedWordLists((prevWordLists) => {
+        return [
+          ...prevWordLists.slice(0, idx),
+          ...prevWordLists.slice(idx, idx + 1),
+          ...prevWordLists.slice(idx),
+        ];
+      });
+    } else {
+      if (!currentlySaved) {
+        alert('Please save before making changes');
+      }
+      
     }
   };
 
@@ -590,6 +617,7 @@ function EditorApp() {
         saved={currentlySaved}
         select={selectWordList}
         remove={removeWordList}
+        duplicate={duplicateWordList}
       >
         <Button onClick={newWordList}>New Crossword</Button>
       </SavedWordLists>
@@ -606,12 +634,12 @@ function PlayerApp({ wordList, gridSize }) {
 
   return (
     <Body>
-      <UI>
+      <Toolbar>
         <DraftDirectionButtons
           setDraftDirection={setDraftDirection}
           draftDirection={draftDirection}
         />
-      </UI>
+      </Toolbar>
       <GridClueContainer>
         <PlayableCrosswordGrid draftDirection={draftDirection} grid={grid} />
         <ClueList wordList={wordList} grid={grid} editable={false} />
@@ -650,11 +678,11 @@ let Body = styled.div`
   font-size: 16px;
 `;
 
-let UI = styled.div`
+let Toolbar = styled.div`
   display: flex;
   padding: 5px;
 `;
-let WordUI = styled.div`
+let ToolbarSection = styled.div`
   display: flex;
   flex-direction: column;
   text-align: center;

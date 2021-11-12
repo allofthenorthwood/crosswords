@@ -28,16 +28,19 @@ export function buildGridFromWordList(wordList, gridSize) {
     let ys = direction === 'y' ? 1 : 0;
 
     for (let i = 0; i < word.length; i++) {
-      let cell = grid[y + i * ys][x + i * xs];
-      if (i === 0) {
-        if (direction === 'x') {
-          cell.wordHereAcross = item;
-        } else {
-          cell.wordHereDown = item;
+      let row = grid[y + i * ys];
+      if (row != null && row[x + i * xs] != null) {
+        let cell = row[x + i * xs];
+        if (i === 0) {
+          if (direction === 'x') {
+            cell.wordHereAcross = item;
+          } else {
+            cell.wordHereDown = item;
+          }
         }
+        cell.chars.add(word[i]);
+        cell.allWordsHere.add(item);
       }
-      cell.chars.add(word[i]);
-      cell.allWordsHere.add(item);
     }
   }
 
