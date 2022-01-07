@@ -1,8 +1,24 @@
 import styled from 'styled-components';
 
-export default function Clues({ wordList, grid, updateClue, editable }) {
+export default function Clues({ wordList, grid, updateClue, editable, curCell, draftDirection }) {
   let acrossClues = wordList.filter((item) => item.direction === 'x');
   let downClues = wordList.filter((item) => item.direction === 'y');
+
+  //This only handles having one word down and one word across, which isn't all
+  // possibilities but kinda should be
+  let wordAcross = null;
+  let wordDown = null;
+  if (curCell) {
+    console.log(curCell)
+    for (let word of curCell.allWordsHere) {
+      if (word.direction === 'x') {
+        wordAcross = word;
+      } else {
+        wordDown = word;
+      }
+    }
+    console.log(wordAcross, wordDown)
+  }
 
   return (
     <Container>
@@ -13,6 +29,8 @@ export default function Clues({ wordList, grid, updateClue, editable }) {
           grid={grid}
           updateClue={updateClue}
           editable={editable}
+          activeWord={wordAcross}
+          primaryClue={wordAcross && wordAcross.direction === draftDirection}
         />
         <DirectionClueList
           title="Down"
@@ -20,18 +38,20 @@ export default function Clues({ wordList, grid, updateClue, editable }) {
           grid={grid}
           updateClue={updateClue}
           editable={editable}
+          activeWord={wordDown}
+          primaryClue={wordDown && wordDown.direction === draftDirection}
         />
       </CluesInner>
     </Container>
   );
 }
 
-function DirectionClueList({ title, clues, grid, updateClue, editable }) {
+function DirectionClueList({ title, clues, grid, updateClue, editable, activeWord, primaryClue}) {
   return (
     <ClueListSection>
       <ClueListTitle>{title}</ClueListTitle>
       {clues.map((item, idx) => (
-        <ClueListItem key={idx}>
+        <ClueListItem key={idx} current={activeWord && activeWord.x === item.x && activeWord.y === item.y} primaryClue={primaryClue}>
           <ClueNum>{grid[item.y][item.x].cellNumber}</ClueNum>
           {editable ? (
             <>
@@ -81,6 +101,7 @@ let ClueInput = styled.input`
 `;
 let ClueListItem = styled.div`
   margin-bottom: 10px;
+  ${props => props.current ? 'background-color: #9ce2ff' : ''}
 `;
 let ClueNum = styled.span`
   font-weight: bold;
@@ -95,4 +116,5 @@ let ClueAnswer = styled.span`
 `;
 let Clue = styled.div`
   font-size: 0.9em;
+  display: inline;
 `;

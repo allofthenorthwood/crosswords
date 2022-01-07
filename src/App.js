@@ -286,19 +286,38 @@ function EditableCrosswordGrid({
   );
 }
 
-function PlayableCrosswordGrid({ draftDirection, grid }) {
+function PlayableCrosswordGrid({ draftDirection, grid, updateAssociatedClue }) {
+  let [focusPosition, setFocusPosition] = useState(null);
   let gridRef = useRef(null);
 
-  let handleMouseEnter = (x, y) => {
-    //
+  let handleUnFocus = () => {
+    updateAssociatedClue(null);
+    setFocusPosition(null);
   };
-  let handleMouseLeave = () => {
-    //
+  let handleFocus = (x, y, cell) => {
+    handleUnFocus();
+    if (cell) {
+      updateAssociatedClue(cell);
+      console.log('cell is: ' + cell)
+      setFocusPosition({ x, y });
+    }
   };
 
   function handleChange(e, x, y) {
     const input = e.target;
     const { value, selectionStart } = input;
+
+    let wordHere = null;
+    // if (focusPosition) {
+    //   let { x, y } = focusPosition;
+    //   let wordHereAcross = grid[y][x].wordHereAcross;
+    //   let wordHereDown = grid[y][x].wordHereDown;
+    //   wordHere =
+    //     draftDirection === 'x'
+    //       ? wordHereAcross ?? wordHereDown
+    //       : wordHereDown ?? wordHereAcross;
+    // }
+    // console.log(wordHere);
 
     // TODO: better unicode support
     let char = value.charAt(selectionStart - 1);
@@ -389,8 +408,8 @@ function PlayableCrosswordGrid({ draftDirection, grid }) {
             return (
               <GridCell
                 key={x}
-                onMouseEnter={() => handleMouseEnter(x, y)}
-                onMouseLeave={() => handleMouseLeave(x, y)}
+                //onMouseEnter={() => handleFocus(x, y, cell)}
+                //onMouseLeave={() => handleUnFocus()}
                 hasLetter={hasLetter}
               >
                 <GridCellContents>
@@ -400,6 +419,7 @@ function PlayableCrosswordGrid({ draftDirection, grid }) {
                       name={`cellinput-${x}-${y}`}
                       onChange={(e) => handleChange(e, x, y)}
                       onKeyDown={(e) => handleKeyDown(e, x, y)}
+                      onFocus={() => handleFocus(x, y, cell)}
                     />
                   )}
                 </GridCellContents>
@@ -638,10 +658,14 @@ function EditorApp() {
 
 function PlayerApp({ wordList, gridSize }) {
   let [draftDirection, setDraftDirection] = useState('x');
+  let [curCell, setCurCell] = useState(null);
   let grid = useMemo(
     () => buildGridFromWordList(wordList, gridSize),
     [wordList, gridSize]
   );
+  let updateAssociatedClue = (cell) => {
+    setCurCell(cell);
+  };
 
   return (
     <Body>
@@ -652,8 +676,18 @@ function PlayerApp({ wordList, gridSize }) {
         />
       </Toolbar>
       <GridClueContainer>
-        <PlayableCrosswordGrid draftDirection={draftDirection} grid={grid} />
-        <ClueList wordList={wordList} grid={grid} editable={false} />
+        <PlayableCrosswordGrid
+          draftDirection={draftDirection}
+          grid={grid}
+          updateAssociatedClue={updateAssociatedClue}
+        />
+        <ClueList
+          wordList={wordList}
+          grid={grid}
+          editable={false}
+          curCell={curCell}
+          draftDirection={draftDirection}
+        />
       </GridClueContainer>
     </Body>
   );
