@@ -4,6 +4,7 @@ import { sortBy, uniq } from 'lodash';
 
 import ClueList from './ClueList';
 import { buildGridFromWordList } from './GridModel';
+import wordDictionary from './words';
 
 function usePreventWindowUnload(preventDefault) {
   useEffect(() => {
@@ -44,7 +45,14 @@ function DraftDirectionButtons({ draftDirection, setDraftDirection }) {
   );
 }
 
-function SavedWordLists({ selected, wordLists, select, remove, duplicate, children }) {
+function SavedWordLists({
+  selected,
+  wordLists,
+  select,
+  remove,
+  duplicate,
+  children,
+}) {
   return (
     <SavedLists>
       {wordLists.map((wordList, idx) => {
@@ -109,7 +117,10 @@ function EditorToolbar({
   saveWordList,
 }) {
   let validateWordInput = (e) => {
-    e.target.value = e.target.value.replace(/[^\w]/g, '').toUpperCase();
+    e.target.value = e.target.value
+      .replace(/[^\w?]/g, '')
+      .replace(/[_]/g, '')
+      .toUpperCase();
     setDraftWord(e.target.value);
   };
 
@@ -338,14 +349,10 @@ function PlayableCrosswordGrid({ draftDirection, grid }) {
 
     if (backwards) {
       targetCell =
-        dir === 'x'
-          ? thisCell.previousCellAcross
-          : thisCell.previousCellDown;
+        dir === 'x' ? thisCell.previousCellAcross : thisCell.previousCellDown;
     } else {
       targetCell =
-        dir === 'x'
-          ? thisCell.nextCellAcross
-          : thisCell.nextCellDown;
+        dir === 'x' ? thisCell.nextCellAcross : thisCell.nextCellDown;
     }
     let targetSibling = gridRef.current.querySelector(
       `[name="cellinput-${targetCell.x}-${targetCell.y}"]`
@@ -556,7 +563,6 @@ function EditorApp() {
       if (!currentlySaved) {
         alert('Please save before making changes');
       }
-      
     }
   };
 
@@ -583,6 +589,11 @@ function EditorApp() {
     setDraftClue(wordItem.clue);
     setDraftDirection(wordItem.direction);
   };
+  /*return <div>
+    {wordDictionary.sort((a, b) => {return a.length - b.length}).map(w => {
+      return <div key={w}>"{w}",</div>
+    })}
+  </div>;*/
 
   return (
     <Body>
