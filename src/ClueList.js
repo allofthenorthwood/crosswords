@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 
-export default function Clues({ wordList, grid, updateClue, editable, curCell, draftDirection }) {
+export default function Clues({ wordList, grid, updateClue, editable, curCell, draftDirection, onClueClick }) {
   let acrossClues = wordList.filter((item) => item.direction === 'x');
   let downClues = wordList.filter((item) => item.direction === 'y');
 
@@ -29,6 +29,7 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
           editable={editable}
           activeWord={wordAcross}
           primaryClueDirection={wordAcross && wordAcross.direction === draftDirection}
+          onClueClick={onClueClick}
         />
         <DirectionClueList
           title="Down"
@@ -38,18 +39,19 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
           editable={editable}
           activeWord={wordDown}
           primaryClueDirection={wordDown && wordDown.direction === draftDirection}
+          onClueClick={onClueClick}
         />
       </CluesInner>
     </Container>
   );
 }
 
-function DirectionClueList({ title, clues, grid, updateClue, editable, activeWord, primaryClueDirection}) {
+function DirectionClueList({ title, clues, grid, updateClue, editable, activeWord, primaryClueDirection, onClueClick}) {
   return (
     <ClueListSection>
       <ClueListTitle>{title}</ClueListTitle>
       {clues.map((item, idx) => (
-        <ClueListItem key={idx} current={activeWord && activeWord.x === item.x && activeWord.y === item.y} primaryClueDirection={primaryClueDirection}>
+        <ClueListItem key={idx} current={activeWord && activeWord.x === item.x && activeWord.y === item.y} primaryClueDirection={primaryClueDirection} onClick={() => onClueClick && onClueClick(item)}>
           <ClueNum>{grid[item.y][item.x].cellNumber}</ClueNum>
           {editable ? (
             <>

@@ -311,8 +311,8 @@ function PlayableCrosswordGrid({
   grid,
   updateAssociatedClue,
   curCell,
+  gridRef,
 }) {
-  let gridRef = useRef(null);
 
   let handleUnFocus = () => {
     updateAssociatedClue(null);
@@ -672,6 +672,7 @@ function EditorApp() {
 function PlayerApp({ wordList, gridSize }) {
   let [draftDirection, setDraftDirection] = useState('x');
   let [curCell, setCurCell] = useState(null);
+  let gridRef = useRef(null);
   let grid = useMemo(
     () => buildGridFromWordList(wordList, gridSize),
     [wordList, gridSize]
@@ -683,6 +684,18 @@ function PlayerApp({ wordList, gridSize }) {
   useEffect(() => {
     return handleShortcutKeys(draftDirection, setDraftDirection, null);
   }, [draftDirection]);
+
+  let onClueClick = (word) => {
+    let targetWord = gridRef.current.querySelector(
+      `[name="cellinput-${word.x}-${word.y}"]`
+    );
+
+    if (targetWord !== null) {
+      targetWord.focus();
+      setDraftDirection(word.direction);
+    }
+  }
+
 
   return (
     <Body>
@@ -698,6 +711,7 @@ function PlayerApp({ wordList, gridSize }) {
           grid={grid}
           updateAssociatedClue={updateAssociatedClue}
           curCell={curCell}
+          gridRef={gridRef}
         />
         <ClueList
           wordList={wordList}
@@ -705,6 +719,7 @@ function PlayerApp({ wordList, gridSize }) {
           editable={false}
           curCell={curCell}
           draftDirection={draftDirection}
+          onClueClick={onClueClick}
         />
       </GridClueContainer>
     </Body>
