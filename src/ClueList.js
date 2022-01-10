@@ -9,7 +9,6 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
   let wordAcross = null;
   let wordDown = null;
   if (curCell) {
-    console.log(curCell)
     for (let word of curCell.allWordsHere) {
       if (word.direction === 'x') {
         wordAcross = word;
@@ -17,7 +16,6 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
         wordDown = word;
       }
     }
-    console.log(wordAcross, wordDown)
   }
 
   return (
@@ -30,7 +28,7 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
           updateClue={updateClue}
           editable={editable}
           activeWord={wordAcross}
-          primaryClue={wordAcross && wordAcross.direction === draftDirection}
+          primaryClueDirection={wordAcross && wordAcross.direction === draftDirection}
         />
         <DirectionClueList
           title="Down"
@@ -39,19 +37,19 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
           updateClue={updateClue}
           editable={editable}
           activeWord={wordDown}
-          primaryClue={wordDown && wordDown.direction === draftDirection}
+          primaryClueDirection={wordDown && wordDown.direction === draftDirection}
         />
       </CluesInner>
     </Container>
   );
 }
 
-function DirectionClueList({ title, clues, grid, updateClue, editable, activeWord, primaryClue}) {
+function DirectionClueList({ title, clues, grid, updateClue, editable, activeWord, primaryClueDirection}) {
   return (
     <ClueListSection>
       <ClueListTitle>{title}</ClueListTitle>
       {clues.map((item, idx) => (
-        <ClueListItem key={idx} current={activeWord && activeWord.x === item.x && activeWord.y === item.y} primaryClue={primaryClue}>
+        <ClueListItem key={idx} current={activeWord && activeWord.x === item.x && activeWord.y === item.y} primaryClueDirection={primaryClueDirection}>
           <ClueNum>{grid[item.y][item.x].cellNumber}</ClueNum>
           {editable ? (
             <>
@@ -81,14 +79,13 @@ let CluesInner = styled.div`
 `;
 
 let ClueListSection = styled.div`
-  padding: 5px;
   border-top: 1px solid #eee;
 `;
 let ClueListTitle = styled.h1`
   font-size: 0.75em;
   text-transform: uppercase;
   margin: 0;
-  margin-bottom: 5px;
+  padding: 5px;
 `;
 let ClueInput = styled.input`
   padding: 5px;
@@ -100,8 +97,8 @@ let ClueInput = styled.input`
   }
 `;
 let ClueListItem = styled.div`
-  margin-bottom: 10px;
-  ${props => props.current ? 'background-color: #9ce2ff' : ''}
+  padding: 5px;
+  ${props => props.current ? (props.primaryClueDirection ? 'background-color: #9ce2ff' : 'background-color: #fff39f') :''}
 `;
 let ClueNum = styled.span`
   font-weight: bold;

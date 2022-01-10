@@ -18,6 +18,26 @@ function usePreventWindowUnload(preventDefault) {
   }, [preventDefault]);
 }
 
+function handleShortcutKeys(draftDirection, setDraftDirection, setDraftWord) {
+  let swapDraftDirection = () => {
+    setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
+  };
+  function handleKeyDown(e) {
+    if (e.code === 'Enter') {
+      e.preventDefault();
+      swapDraftDirection();
+    }
+    if (setDraftWord) {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        setDraftWord('');
+      }
+    }
+  }
+  document.body.addEventListener('keydown', handleKeyDown);
+  return () => document.body.removeEventListener('keydown', handleKeyDown);
+}
+
 function DraftDirectionButtons({ draftDirection, setDraftDirection }) {
   return (
     <Buttons>
@@ -286,38 +306,40 @@ function EditableCrosswordGrid({
   );
 }
 
-function PlayableCrosswordGrid({ draftDirection, grid, updateAssociatedClue }) {
-  let [focusPosition, setFocusPosition] = useState(null);
+function PlayableCrosswordGrid({
+  draftDirection,
+  grid,
+  updateAssociatedClue,
+  curCell,
+}) {
   let gridRef = useRef(null);
 
   let handleUnFocus = () => {
     updateAssociatedClue(null);
-    setFocusPosition(null);
   };
   let handleFocus = (x, y, cell) => {
     handleUnFocus();
     if (cell) {
       updateAssociatedClue(cell);
-      console.log('cell is: ' + cell)
-      setFocusPosition({ x, y });
     }
   };
+
+  // get the FIRST word found for each direction. There can technically be more,
+  // but that's not a valid crossword in the traditional sense.
+  let wordHere = null;
+  if (curCell) {
+    for (const e of curCell.allWordsHere) {
+      if (e.direction === draftDirection) {
+        wordHere = e;
+        break;
+      }
+    }
+  }
+
 
   function handleChange(e, x, y) {
     const input = e.target;
     const { value, selectionStart } = input;
-
-    let wordHere = null;
-    // if (focusPosition) {
-    //   let { x, y } = focusPosition;
-    //   let wordHereAcross = grid[y][x].wordHereAcross;
-    //   let wordHereDown = grid[y][x].wordHereDown;
-    //   wordHere =
-    //     draftDirection === 'x'
-    //       ? wordHereAcross ?? wordHereDown
-    //       : wordHereDown ?? wordHereAcross;
-    // }
-    // console.log(wordHere);
 
     // TODO: better unicode support
     let char = value.charAt(selectionStart - 1);
@@ -405,12 +427,17 @@ function PlayableCrosswordGrid({ draftDirection, grid, updateAssociatedClue }) {
         <GridRow key={y}>
           {row.map((cell, x) => {
             let hasLetter = cell.chars.size > 0;
+            let focusedWordHere = false;
+            if (cell.allWordsHere.has(wordHere)) {
+              focusedWordHere = true;
+            }
             return (
               <GridCell
                 key={x}
                 //onMouseEnter={() => handleFocus(x, y, cell)}
                 //onMouseLeave={() => handleUnFocus()}
                 hasLetter={hasLetter}
+                inCurrentWord={focusedWordHere}
               >
                 <GridCellContents>
                   <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
@@ -483,21 +510,7 @@ function EditorApp() {
   };
 
   useEffect(() => {
-    let swapDraftDirection = () => {
-      setDraftDirection(draftDirection === 'x' ? 'y' : 'x');
-    };
-    function handleKeyDown(e) {
-      if (e.code === 'Enter') {
-        e.preventDefault();
-        swapDraftDirection();
-      }
-      if (e.code === 'Escape') {
-        e.preventDefault();
-        setDraftWord('');
-      }
-    }
-    document.body.addEventListener('keydown', handleKeyDown);
-    return () => document.body.removeEventListener('keydown', handleKeyDown);
+    return handleShortcutKeys(draftDirection, setDraftDirection, setDraftWord);
   }, [draftDirection]);
 
   useEffect(() => {
@@ -667,6 +680,10 @@ function PlayerApp({ wordList, gridSize }) {
     setCurCell(cell);
   };
 
+  useEffect(() => {
+    return handleShortcutKeys(draftDirection, setDraftDirection, null);
+  }, [draftDirection]);
+
   return (
     <Body>
       <Toolbar>
@@ -680,6 +697,7 @@ function PlayerApp({ wordList, gridSize }) {
           draftDirection={draftDirection}
           grid={grid}
           updateAssociatedClue={updateAssociatedClue}
+          curCell={curCell}
         />
         <ClueList
           wordList={wordList}
@@ -854,7 +872,9 @@ let GridCell = styled.div`
       ? 'grab'
       : 'default'};
   background: ${(props) =>
-    props.modifiable && props.hover
+    props.inCurrentWord
+      ? '#b8ebff'
+      : props.modifiable && props.hover
       ? '#eee'
       : props.hasLetter
       ? '#fff'
@@ -895,8 +915,8 @@ let GridCellInput = styled.input`
   caret-color: transparent;
 
   :focus {
-    border: 0px;
-    box-shadow: 0 0 1px 1px #1a8fbf;
+    border: 0;
+    box-shadow: 0 0 1px 0px #1a8fbf;
     outline: none;
     background: #4cc7f9;
   }
