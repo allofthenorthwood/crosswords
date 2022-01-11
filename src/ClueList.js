@@ -1,6 +1,14 @@
 import styled from 'styled-components';
 
-export default function Clues({ wordList, grid, updateClue, editable, curCell, draftDirection, onClueClick }) {
+export default function Clues({
+  wordList,
+  grid,
+  updateClue,
+  editable,
+  curCell,
+  draftDirection,
+  onClueClick,
+}) {
   let acrossClues = wordList.filter((item) => item.direction === 'x');
   let downClues = wordList.filter((item) => item.direction === 'y');
 
@@ -28,7 +36,9 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
           updateClue={updateClue}
           editable={editable}
           activeWord={wordAcross}
-          primaryClueDirection={wordAcross && wordAcross.direction === draftDirection}
+          primaryClueDirection={
+            wordAcross && wordAcross.direction === draftDirection
+          }
           onClueClick={onClueClick}
         />
         <DirectionClueList
@@ -38,7 +48,9 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
           updateClue={updateClue}
           editable={editable}
           activeWord={wordDown}
-          primaryClueDirection={wordDown && wordDown.direction === draftDirection}
+          primaryClueDirection={
+            wordDown && wordDown.direction === draftDirection
+          }
           onClueClick={onClueClick}
         />
       </CluesInner>
@@ -46,21 +58,37 @@ export default function Clues({ wordList, grid, updateClue, editable, curCell, d
   );
 }
 
-function DirectionClueList({ title, clues, grid, updateClue, editable, activeWord, primaryClueDirection, onClueClick}) {
+function DirectionClueList({
+  title,
+  clues,
+  grid,
+  updateClue,
+  editable,
+  activeWord,
+  primaryClueDirection,
+  onClueClick,
+}) {
   return (
     <ClueListSection>
       <ClueListTitle>{title}</ClueListTitle>
       {clues.map((item, idx) => (
-        <ClueListItem key={idx} current={activeWord && activeWord.x === item.x && activeWord.y === item.y} primaryClueDirection={primaryClueDirection} onClick={() => onClueClick && onClueClick(item)}>
+        <ClueListItem
+          key={idx}
+          current={
+            activeWord && activeWord.x === item.x && activeWord.y === item.y
+          }
+          primaryClueDirection={primaryClueDirection}
+          onClick={() => onClueClick && onClueClick(item)}
+        >
           <ClueNum>{grid[item.y][item.x].cellNumber}</ClueNum>
           {editable ? (
             <>
-              <ClueAnswer>{item.word}</ClueAnswer>
               <ClueInput
                 value={item.clue}
                 placeholder="[Clue needed]"
                 onChange={(e) => updateClue(item, e.target.value)}
               />
+              <ClueAnswer>{item.word}</ClueAnswer>
             </>
           ) : (
             <Clue>{item.clue}</Clue>
@@ -74,6 +102,7 @@ function DirectionClueList({ title, clues, grid, updateClue, editable, activeWor
 let Container = styled.div`
   width: 100%;
   overflow-y: scroll;
+  min-height: 375px;
 `;
 let CluesInner = styled.div`
   width: 100%;
@@ -91,8 +120,12 @@ let ClueListTitle = styled.h1`
 `;
 let ClueInput = styled.input`
   padding: 5px;
-  margin: 2px;
   display: block;
+  border: 1px solid #999;
+  border-radius: 3px;
+  display: inline-block;
+  font-family: inherit;
+  width: 200px;
   ::placeholder,
   ::-webkit-input-placeholder {
     color: #ccc;
@@ -100,7 +133,12 @@ let ClueInput = styled.input`
 `;
 let ClueListItem = styled.div`
   padding: 5px;
-  ${props => props.current ? (props.primaryClueDirection ? 'background-color: #9ce2ff' : 'background-color: #fff39f') :''}
+  ${(props) =>
+    props.current
+      ? props.primaryClueDirection
+        ? 'background-color: #9ce2ff'
+        : 'background-color: #fff39f'
+      : ''}
 `;
 let ClueNum = styled.span`
   font-weight: bold;
@@ -108,10 +146,14 @@ let ClueNum = styled.span`
   display: inline-block;
   vertical-align: top;
   margin-right: 0.25em;
+  text-align: right;
+  min-width: 1em;
+
 `;
 let ClueAnswer = styled.span`
   text-transform: uppercase;
   font-size: 0.9em;
+  margin-left: 5px;
 `;
 let Clue = styled.div`
   font-size: 0.9em;

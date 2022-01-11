@@ -69,7 +69,10 @@ export function buildGridFromWordList(wordList, gridSize) {
     previousCellAcross.nextCellAcross = firstCellAcross;
   }
 
-  let firstCellDown = null;
+  // Set up the basics of next- and prev-cell
+  // TODO: this isn't quite right. we should go to the next cell in the word,
+  // not just the next cell down, but that means we have to handle not being in a
+  // down-word
   let previousCellDown = null;
   for (let x = 0; x < gridSize; x++) {
     for (let y = 0; y < gridSize; y++) {
@@ -78,17 +81,42 @@ export function buildGridFromWordList(wordList, gridSize) {
         if (previousCellDown) {
           previousCellDown.nextCellDown = cell;
           cell.previousCellDown = previousCellDown;
-        } else {
-          firstCellDown = cell;
         }
         previousCellDown = cell;
       }
     }
   }
-  if (firstCellDown) {
-    firstCellDown.previousCellDown = previousCellDown;
-    previousCellDown.nextCellDown = firstCellDown;
-  }
+
+  // if this is the first cell down in a word, the previous cell isn't the one
+  // right before it! it's the last cell of the previous word in the wordlist.
+  // the next cell down after the last cell in a word is also the next word
+  let prevWordDown = null;
+  let firstWordDown = null;
+  wordList.forEach((item) => {
+    if (item.direction === 'y') {
+      let cell = grid[item.y][item.x];
+      if (prevWordDown) {
+        let lastCellOfPrevWord =
+          grid[prevWordDown.y + prevWordDown.word.length - 1][prevWordDown.x];
+        cell.previousCellDown = lastCellOfPrevWord;
+
+        // last cell of the prev word links to the first cell of this word
+        lastCellOfPrevWord.nextCellDown = grid[item.y][item.x];
+      } else {
+        firstWordDown = item;
+      }
+      prevWordDown = item;
+    }
+  });
+
+
+  // tie up the ends:
+  let firstCellDown = grid[firstWordDown.y][firstWordDown.x];
+  let lastCellDown = grid[prevWordDown.y + prevWordDown.word.length - 1][prevWordDown.x]
+  // set the first cell's prev to wrap around to the last word
+  firstCellDown.previousCellDown = lastCellDown;
+  // set the last cell's next to wrap around to the first word
+  lastCellDown.nextCellDown = firstCellDown;
 
   return grid;
 }

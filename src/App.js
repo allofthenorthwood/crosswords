@@ -226,83 +226,85 @@ function EditableCrosswordGrid({
     setCandidatePosition(null);
   };
   return (
-    <Grid>
-      {grid.map((row, y) => {
-        return (
-          <GridRow key={y}>
-            {row.map((cell, x) => {
-              let { chars, allWordsHere } = cell;
+    <GridContainer>
+      <Grid>
+        {grid.map((row, y) => {
+          return (
+            <GridRow key={y}>
+              {row.map((cell, x) => {
+                let { chars, allWordsHere } = cell;
 
-              function getCharFromWord({ word, direction, x: wx, y: wy }) {
-                let chars = [...word];
-                if (direction === 'x' && wy === y) {
-                  return chars[x - wx];
-                } else if (direction === 'y' && wx === x) {
-                  return chars[y - wy];
+                function getCharFromWord({ word, direction, x: wx, y: wy }) {
+                  let chars = [...word];
+                  if (direction === 'x' && wy === y) {
+                    return chars[x - wx];
+                  } else if (direction === 'y' && wx === x) {
+                    return chars[y - wy];
+                  }
                 }
-              }
 
-              let modifiableIsHere = false;
-              let draftChar = '';
-              if (allWordsHere.has(modifiableWordItem)) {
-                modifiableIsHere = true;
-                draftChar = getCharFromWord(modifiableWordItem);
-              }
-              if (candidatePosition) {
-                draftChar =
-                  getCharFromWord({
-                    word: draftWord,
-                    direction: draftDirection,
-                    x: candidatePosition.x,
-                    y: candidatePosition.y,
-                  }) || '';
-              }
+                let modifiableIsHere = false;
+                let draftChar = '';
+                if (allWordsHere.has(modifiableWordItem)) {
+                  modifiableIsHere = true;
+                  draftChar = getCharFromWord(modifiableWordItem);
+                }
+                if (candidatePosition) {
+                  draftChar =
+                    getCharFromWord({
+                      word: draftWord,
+                      direction: draftDirection,
+                      x: candidatePosition.x,
+                      y: candidatePosition.y,
+                    }) || '';
+                }
 
-              return (
-                <GridCell
-                  key={x}
-                  onMouseEnter={() => handleMouseEnter(x, y)}
-                  onMouseLeave={() => handleMouseLeave(x, y)}
-                  interactable={canCommitDraftWord || modifiableIsHere}
-                  placeable={draftWord.length > 0 && canCommitDraftWord}
-                  holdingWord={draftWord.length > 0}
-                  modifiable={modifiableIsHere}
-                  hover={modifiableIsHere && !draftWord.length}
-                  hasLetter={chars.size || draftChar}
-                  onClick={() => {
-                    if (modifiableWordItem) {
-                      removeWord(modifiableWordItem);
-                    } else if (canCommitDraftWord) {
-                      commitWord(x, y);
-                    }
-                  }}
-                >
-                  <GridCellContents>
-                    <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
-                    {uniq([...sortBy([...chars]), ...draftChar]).map((c) => {
-                      return (
-                        <GridCellChar
-                          error={
-                            chars.size > 1 ||
-                            (chars.size > 0 &&
-                              c === draftChar &&
-                              !chars.has(draftChar))
-                          }
-                          draft={c === draftChar}
-                          key={c}
-                        >
-                          {c}
-                        </GridCellChar>
-                      );
-                    })}
-                  </GridCellContents>
-                </GridCell>
-              );
-            })}
-          </GridRow>
-        );
-      })}
-    </Grid>
+                return (
+                  <GridCell
+                    key={x}
+                    onMouseEnter={() => handleMouseEnter(x, y)}
+                    onMouseLeave={() => handleMouseLeave(x, y)}
+                    interactable={canCommitDraftWord || modifiableIsHere}
+                    placeable={draftWord.length > 0 && canCommitDraftWord}
+                    holdingWord={draftWord.length > 0}
+                    modifiable={modifiableIsHere}
+                    hover={modifiableIsHere && !draftWord.length}
+                    hasLetter={chars.size || draftChar}
+                    onClick={() => {
+                      if (modifiableWordItem) {
+                        removeWord(modifiableWordItem);
+                      } else if (canCommitDraftWord) {
+                        commitWord(x, y);
+                      }
+                    }}
+                  >
+                    <GridCellContents>
+                      <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
+                      {uniq([...sortBy([...chars]), ...draftChar]).map((c) => {
+                        return (
+                          <GridCellChar
+                            error={
+                              chars.size > 1 ||
+                              (chars.size > 0 &&
+                                c === draftChar &&
+                                !chars.has(draftChar))
+                            }
+                            draft={c === draftChar}
+                            key={c}
+                          >
+                            {c}
+                          </GridCellChar>
+                        );
+                      })}
+                    </GridCellContents>
+                  </GridCell>
+                );
+              })}
+            </GridRow>
+          );
+        })}
+      </Grid>
+    </GridContainer>
   );
 }
 
@@ -435,44 +437,46 @@ function PlayableCrosswordGrid({
   }
 
   return (
-    <Grid ref={gridRef}>
-      {grid.map((row, y) => (
-        <GridRow key={y}>
-          {row.map((cell, x) => {
-            let hasLetter = cell.chars.size > 0;
-            let focusedWordHere = false;
-            if (cell.allWordsHere.has(wordHere)) {
-              focusedWordHere = true;
-            }
-            let cellVal = '';
-            cell.chars.forEach((c) => (cellVal += c));
-            return (
-              <GridCell
-                key={x}
-                hasLetter={hasLetter}
-                inCurrentWord={focusedWordHere}
-              >
-                <GridCellContents>
-                  <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
-                  {hasLetter > 0 && (
-                    <GridCellInput
-                      value={showAnswers ? cellVal : gridInputs[x][y]}
-                      name={`cellinput-${x}-${y}`}
-                      onChange={(e) => handleChange(e, x, y)}
-                      onKeyDown={(e) => handleKeyDown(e, x, y)}
-                      onFocus={() => handleFocus(x, y, cell)}
-                      showAnswers={showIncorrect || showAnswers}
-                      correct={gridInputs[x][y] === cellVal}
-                      empty={gridInputs[x][y] === ''}
-                    />
-                  )}
-                </GridCellContents>
-              </GridCell>
-            );
-          })}
-        </GridRow>
-      ))}
-    </Grid>
+    <GridContainer>
+      <Grid ref={gridRef}>
+        {grid.map((row, y) => (
+          <GridRow key={y}>
+            {row.map((cell, x) => {
+              let hasLetter = cell.chars.size > 0;
+              let focusedWordHere = false;
+              if (cell.allWordsHere.has(wordHere)) {
+                focusedWordHere = true;
+              }
+              let cellVal = '';
+              cell.chars.forEach((c) => (cellVal += c));
+              return (
+                <GridCell
+                  key={x}
+                  hasLetter={hasLetter}
+                  inCurrentWord={focusedWordHere}
+                >
+                  <GridCellContents>
+                    <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
+                    {hasLetter > 0 && (
+                      <GridCellInput
+                        value={showAnswers ? cellVal : gridInputs[x][y]}
+                        name={`cellinput-${x}-${y}`}
+                        onChange={(e) => handleChange(e, x, y)}
+                        onKeyDown={(e) => handleKeyDown(e, x, y)}
+                        onFocus={() => handleFocus(x, y, cell)}
+                        showAnswers={showIncorrect || showAnswers}
+                        correct={gridInputs[x][y] === cellVal}
+                        empty={gridInputs[x][y] === ''}
+                      />
+                    )}
+                  </GridCellContents>
+                </GridCell>
+              );
+            })}
+          </GridRow>
+        ))}
+      </Grid>
+    </GridContainer>
   );
 }
 
@@ -832,6 +836,7 @@ let WordInput = styled.input`
   letter-spacing: 3px;
   border-radius: ${wordInputRadius} 0 0 ${wordInputRadius};
   border: 1px solid #999;
+  font-family: inherit;
   z-index: 2;
   ::placeholder,
   ::-webkit-input-placeholder {
@@ -910,8 +915,15 @@ let Key = styled.span`
 let GridClueContainer = styled.div`
   display: flex;
   align-items: stretch;
+  @media (max-width: 680px) {
+    flex-direction: column;
+  }
 `;
 
+let GridContainer = styled.div`
+  display: flex;
+  justify-content: center;
+`;
 let Grid = styled.div`
   display: flex;
   flex-direction: column;
@@ -970,6 +982,7 @@ let GridCellInput = styled.input`
   background: transparent;
   text-align: center;
   box-sizing: border-box;
+  font-family: inherit;
   top: 0;
   left: 0;
   border: 0px;
