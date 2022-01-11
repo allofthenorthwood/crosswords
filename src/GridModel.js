@@ -109,14 +109,16 @@ export function buildGridFromWordList(wordList, gridSize) {
     }
   });
 
-
   // tie up the ends:
-  let firstCellDown = grid[firstWordDown.y][firstWordDown.x];
-  let lastCellDown = grid[prevWordDown.y + prevWordDown.word.length - 1][prevWordDown.x]
-  // set the first cell's prev to wrap around to the last word
-  firstCellDown.previousCellDown = lastCellDown;
-  // set the last cell's next to wrap around to the first word
-  lastCellDown.nextCellDown = firstCellDown;
+  if (firstWordDown) {
+    let firstCellDown = grid[firstWordDown.y][firstWordDown.x];
+    let lastCellDown =
+      grid[prevWordDown.y + prevWordDown.word.length - 1][prevWordDown.x];
+    // set the first cell's prev to wrap around to the last word
+    firstCellDown.previousCellDown = lastCellDown;
+    // set the last cell's next to wrap around to the first word
+    lastCellDown.nextCellDown = firstCellDown;
+  }
 
   return grid;
 }
