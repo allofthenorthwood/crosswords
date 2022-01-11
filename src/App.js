@@ -4,7 +4,7 @@ import { sortBy, uniq } from 'lodash';
 
 import ClueList from './ClueList';
 import { buildGridFromWordList } from './GridModel';
-import wordDictionary from './words';
+//import wordDictionary from './words';
 
 function usePreventWindowUnload(preventDefault) {
   useEffect(() => {
@@ -312,8 +312,12 @@ function PlayableCrosswordGrid({
   updateAssociatedClue,
   curCell,
   gridRef,
+  showIncorrect,
+  showAnswers,
 }) {
-
+  let [gridInputs, setGridInputs] = useState(
+    Array.from({ length: 20 }, () => Array.from({ length: 20 }, () => ''))
+  );
   let handleUnFocus = () => {
     updateAssociatedClue(null);
   };
@@ -322,6 +326,12 @@ function PlayableCrosswordGrid({
     if (cell) {
       updateAssociatedClue(cell);
     }
+  };
+
+  let updateGridInputs = (x, y, val) => {
+    let copyGridInputs = [...gridInputs];
+    copyGridInputs[x][y] = val;
+    setGridInputs(copyGridInputs);
   };
 
   // get the FIRST word found for each direction. There can technically be more,
@@ -336,7 +346,6 @@ function PlayableCrosswordGrid({
     }
   }
 
-
   function handleChange(e, x, y) {
     const input = e.target;
     const { value, selectionStart } = input;
@@ -344,7 +353,9 @@ function PlayableCrosswordGrid({
     // TODO: better unicode support
     let char = value.charAt(selectionStart - 1);
     if (/[\w]/.test(char)) {
-      e.target.value = char.toUpperCase();
+      let newVal = char.toUpperCase();
+      e.target.value = newVal;
+      updateGridInputs(x, y, newVal);
 
       // Get the next input field
       let thisCell = grid[y][x];
@@ -363,6 +374,7 @@ function PlayableCrosswordGrid({
       }
     } else {
       e.target.value = '';
+      updateGridInputs(x, y, '');
     }
   }
 
@@ -410,6 +422,7 @@ function PlayableCrosswordGrid({
     if (value.length !== 0) {
       // Allow normal backspace
       e.target.value = '';
+      updateGridInputs(x, y, '');
       return;
     }
 
@@ -431,11 +444,11 @@ function PlayableCrosswordGrid({
             if (cell.allWordsHere.has(wordHere)) {
               focusedWordHere = true;
             }
+            let cellVal = '';
+            cell.chars.forEach((c) => (cellVal += c));
             return (
               <GridCell
                 key={x}
-                //onMouseEnter={() => handleFocus(x, y, cell)}
-                //onMouseLeave={() => handleUnFocus()}
                 hasLetter={hasLetter}
                 inCurrentWord={focusedWordHere}
               >
@@ -443,10 +456,14 @@ function PlayableCrosswordGrid({
                   <GridCellNumber>{grid[y][x].cellNumber}</GridCellNumber>
                   {hasLetter > 0 && (
                     <GridCellInput
+                      value={showAnswers ? cellVal : gridInputs[x][y]}
                       name={`cellinput-${x}-${y}`}
                       onChange={(e) => handleChange(e, x, y)}
                       onKeyDown={(e) => handleKeyDown(e, x, y)}
                       onFocus={() => handleFocus(x, y, cell)}
+                      showAnswers={showIncorrect || showAnswers}
+                      correct={gridInputs[x][y] === cellVal}
+                      empty={gridInputs[x][y] === ''}
                     />
                   )}
                 </GridCellContents>
@@ -671,6 +688,8 @@ function EditorApp() {
 
 function PlayerApp({ wordList, gridSize }) {
   let [draftDirection, setDraftDirection] = useState('x');
+  let [showIncorrect, setShowIncorrect] = useState(false);
+  let [showAnswers, setShowAnswers] = useState(false);
   let [curCell, setCurCell] = useState(null);
   let gridRef = useRef(null);
   let grid = useMemo(
@@ -694,8 +713,7 @@ function PlayerApp({ wordList, gridSize }) {
       targetWord.focus();
       setDraftDirection(word.direction);
     }
-  }
-
+  };
 
   return (
     <Body>
@@ -704,7 +722,28 @@ function PlayerApp({ wordList, gridSize }) {
           setDraftDirection={setDraftDirection}
           draftDirection={draftDirection}
         />
+        <Buttons>
+          <ShowAnswersButtons>
+            <Button
+              selected={showIncorrect}
+              onClick={() => {
+                setShowIncorrect(!showIncorrect);
+              }}
+            >
+              Show Incorrect
+            </Button>
+            <Button
+              selected={showAnswers}
+              onClick={() => {
+                setShowAnswers(!showAnswers);
+              }}
+            >
+              Show Answers
+            </Button>
+          </ShowAnswersButtons>
+        </Buttons>
       </Toolbar>
+
       <GridClueContainer>
         <PlayableCrosswordGrid
           draftDirection={draftDirection}
@@ -712,6 +751,8 @@ function PlayerApp({ wordList, gridSize }) {
           updateAssociatedClue={updateAssociatedClue}
           curCell={curCell}
           gridRef={gridRef}
+          showIncorrect={showIncorrect}
+          showAnswers={showAnswers}
         />
         <ClueList
           wordList={wordList}
@@ -808,6 +849,14 @@ let Buttons = styled.div`
   text-align: center;
   margin-left: 10px;
   min-width: ${(props) => props.minWidth || 'none'};
+`;
+let ShowAnswersButtons = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  & > button {
+    margin-bottom: 5px;
+  }
 `;
 let Rotate = styled.span`
   transform: rotate(90deg);
@@ -911,7 +960,7 @@ let GridCellContents = styled.div`
 let GridCellChar = styled.div`
   color: ${(props) => (props.error ? 'red' : null)};
   font-weight: ${(props) => (props.draft ? 'bold' : '')};
-  padding-top: 0.4em;
+  padding-top: 5px;
   width: 100%;
   box-sizing: border-box;
 `;
@@ -926,12 +975,18 @@ let GridCellInput = styled.input`
   border: 0px;
   font-size: 1em;
   padding: 0;
-  padding-top: 0.4em;
+  padding-top: 6px;
   caret-color: transparent;
+  color: ${(props) =>
+    props.showAnswers
+      ? props.empty
+        ? '#999'
+        : props.correct
+        ? 'blue'
+        : 'red'
+      : '#333'};
 
   :focus {
-    border: 0;
-    box-shadow: 0 0 1px 0px #1a8fbf;
     outline: none;
     background: #4cc7f9;
   }
